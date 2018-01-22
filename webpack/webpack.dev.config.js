@@ -8,7 +8,7 @@ module.exports = {
     'main': [
       'react-hot-loader/patch',
       'webpack-hot-middleware/client?reload=true',
-      './app.js',
+      './src/app.js',
     ]
   },
   output: {
