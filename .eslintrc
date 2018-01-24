@@ -40,7 +40,8 @@
   "env": {
     "es6": true,
     "browser": true,
-    "mocha": true
+    "mocha": true,
+    "amd": true
   },
   "extends": "eslint:recommended",
   "plugins": [
