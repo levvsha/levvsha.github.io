@@ -1,19 +1,27 @@
 import '../styles.styl';
 
 import * as d3 from 'd3';
+import _throttle from 'lodash/throttle';
 import groups from '../groupsMapping.json';
+import data from '../scores.json';
 
 const nodePadding = 2.5;
 
-fetch('https://api.stackexchange.com/2.2/users/5806646/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default')
-  .then(function(response) { return response.json(); })
-  .then(function(json) {
-    draw(json.items)
-  });
+// fetch('https://api.stackexchange.com/2.2/users/5806646/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default')
+//   .then(function(response) { return response.json(); })
+//   .then(function(json) {
+//     draw(json.items)
+//   });
+
+draw(data);
 
 export default function draw(dataAsJson) {
-  const processedData = dataAsJson
-    .map(item => ({ tag: item.tag_name, score: item.answer_score }))
+  // const processedData = dataAsJson
+  //   .map(item => ({ tag: item.tag_name, score: item.answer_score }))
+  //   .map(types);
+
+  const processedData = Object.keys(dataAsJson)
+    .map(key => ({ tag: key, score: dataAsJson[key] }))
     .map(types);
 
   const width = window.innerWidth;
@@ -47,6 +55,8 @@ export default function draw(dataAsJson) {
     .attr('width', width)
     .attr('height', height);
 
+  const tooltip = d3.select('.js-tooltip');
+
   const color = d3.scaleOrdinal(['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3']);
 
   const simulation = d3.forceSimulation()
@@ -76,6 +86,11 @@ export default function draw(dataAsJson) {
         })
     });
 
+  const moveTooltip = _throttle((left, top) => {
+    tooltip.style('left', `${ left }px`)
+      .style('top', `${ top }px`);
+  }, 300);
+
   const node = svg.append('g')
     .attr('class', 'node')
     .selectAll('circle')
@@ -92,6 +107,18 @@ export default function draw(dataAsJson) {
     })
     .attr('cy', function(d) {
       return d.y;
+    })
+    .on('mouseenter', _throttle((d) => {
+      tooltip.style('display', 'block')
+        .text(`${ d.tag }: ${ d.score }`);
+    }, 1000))
+    .on('mouseout', _throttle(() => {
+      tooltip.style('display', 'none')
+        .text('');
+    }, 1000))
+    .on('mousemove', () => {
+      const { clientX, clientY } = d3.event;
+      moveTooltip(clientX, clientY);
     })
     .call(d3.drag()
       .on('start', dragstarted)

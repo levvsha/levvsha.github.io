@@ -1,7 +1,6 @@
 .tooltip {
   background: #1496bb
   color: #fff
-  display: block
   pointer-events: none
   position: absolute
   top: 200px
@@ -10,6 +9,10 @@
   font-family: Arial
   padding: 4px 7px
   border-radius: 4px
+  display: none
+  margin-top: -40px
+  transform: translate(-50%)
+  transition: all 0.4s
 }
 
 .tooltip:after {
@@ -23,9 +26,4 @@
   left: 50%
   position: absolute
   width: 0
-}
-
-.tooltip {
-  opacity: 1
-  pointer-events: auto
 }
