@@ -96,6 +96,9 @@ export default function draw(dataAsJson) {
     .selectAll('circle')
     .data(processedData)
     .enter().append('circle')
+    .attr('class', function(d) {
+      return groups[d.tag] === 'd3dataviz' ? 'flickering' : ''
+    })
     .attr('r', function(d) {
       return d.radius;
     })
@@ -108,14 +111,13 @@ export default function draw(dataAsJson) {
     .attr('cy', function(d) {
       return d.y;
     })
-    .on('mouseenter', _throttle((d) => {
-      tooltip.style('display', 'block')
+    .on('mouseenter', (d) => {
+      tooltip.classed('show', true)
         .text(`${ d.tag }: ${ d.score }`);
-    }, 1000))
-    .on('mouseout', _throttle(() => {
-      tooltip.style('display', 'none')
-        .text('');
-    }, 1000))
+    })
+    .on('mouseout', () => {
+      tooltip.classed('show', false);
+    })
     .on('mousemove', () => {
       const { clientX, clientY } = d3.event;
       moveTooltip(clientX, clientY);

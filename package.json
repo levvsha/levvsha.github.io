@@ -57,7 +57,7 @@
     "html-minifier-cli": "^0.1.0",
     "html-webpack-plugin": "^2.22.0",
     "lodash": "^4.13.1",
-    "material-ui": "^0.16.7",
+    "material-ui": "^1.0.0-beta.30",
     "prop-types": "^15.5.8",
     "react": "^15.5.4",
     "react-async-component": "^1.0.0-beta.3",
@@ -91,4 +91,3 @@
     "x-ray": "^2.3.2"
   }
 }
-
