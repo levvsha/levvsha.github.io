@@ -1,4 +1,4 @@
-import '../styles.styl';
+import './styles.styl';
 
 import * as d3 from 'd3';
 import _throttle from 'lodash/throttle';
@@ -77,7 +77,7 @@ export default function draw(dataAsJson) {
       return d.radius + nodePadding;
     }).iterations(1))
     .on('tick', function() {
-      node
+      circles
         .attr('cx', function(d) {
           return d.x;
         })
@@ -91,14 +91,11 @@ export default function draw(dataAsJson) {
       .style('top', `${ top }px`);
   }, 300);
 
-  const node = svg.append('g')
+  const circles = svg.append('g')
     .attr('class', 'node')
     .selectAll('circle')
     .data(processedData)
     .enter().append('circle')
-    .attr('class', function(d) {
-      return groups[d.tag] === 'd3dataviz' ? 'flickering' : ''
-    })
     .attr('r', function(d) {
       return d.radius;
     })
@@ -127,4 +124,47 @@ export default function draw(dataAsJson) {
       .on('drag', dragged)
       .on('end', dragended)
     );
+
+  function animateCircles(tag) {
+    circles.filter(function(d) {
+      return groups[d.tag] === tag
+    })
+      .each(function() {
+        d3.select(this)
+          .transition()
+          .duration(400)
+          .attr('r', function(d) {
+            return d.radius - 5;
+          })
+          .on('end', function() {
+            d3.select(this)
+              .transition()
+              .duration(400)
+              .attr('r', function(d) {
+                return d.radius;
+              })
+              .on('end', () => animateCircles(tag))
+          })
+      })
+  }
+
+  animateCircles();
+
+  d3.selectAll('.js-tag-link')
+    .on('mouseenter', function() {
+      const tag = this.getAttribute('data-tag');
+      animateCircles(tag);
+    })
+    .on('mouseout', function() {
+      const tag = this.getAttribute('data-tag');
+
+      circles.filter(function(d) {
+        return groups[d.tag] === tag
+      })
+        .transition()
+        .duration(400)
+        .attr('r', function(d) {
+          return d.radius;
+        })
+    })
 }
