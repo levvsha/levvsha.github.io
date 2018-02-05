@@ -10,45 +10,19 @@ const nodePadding = 2.5;
 // fetch('https://api.stackexchange.com/2.2/users/5806646/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default')
 //   .then(function(response) { return response.json(); })
 //   .then(function(json) {
+//     console.log('JSON.stringify(json.items ==>', JSON.stringify(json.items));
 //     draw(json.items)
 //   });
 
 draw(data);
 
 export default function draw(dataAsJson) {
-  // const processedData = dataAsJson
-  //   .map(item => ({ tag: item.tag_name, score: item.answer_score }))
-  //   .map(types);
-
-  const processedData = Object.keys(dataAsJson)
-    .map(key => ({ tag: key, score: dataAsJson[key] }))
+  const processedData = dataAsJson
+    .map(item => ({ tag: item.tag_name, score: item.answer_score }))
     .map(types);
 
   const width = window.innerWidth;
   const height = window.innerHeight;
-
-  function dragstarted(d) {
-    if (!d3.event.active) simulation.alphaTarget(.03).restart();
-    d.fx = d.x;
-    d.fy = d.y;
-  }
-
-  function dragged(d) {
-    d.fx = d3.event.x;
-    d.fy = d3.event.y;
-  }
-
-  function dragended(d) {
-    if (!d3.event.active) simulation.alphaTarget(.03);
-    d.fx = null;
-    d.fy = null;
-  }
-
-  function types(d) {
-    d.size = d.score * 1.5;
-    d.size <= 5 ? d.radius = 5 : d.radius = d.size;
-    return d;
-  }
 
   const svg = d3.select('body')
     .append('svg')
@@ -100,7 +74,7 @@ export default function draw(dataAsJson) {
       return d.radius;
     })
     .attr('fill', function(d) {
-      return color(groups[d.tag]);
+      return color(groups[d.tag] || 'other');
     })
     .attr('cx', function(d) {
       return d.x;
@@ -109,8 +83,10 @@ export default function draw(dataAsJson) {
       return d.y;
     })
     .on('mouseenter', (d) => {
-      tooltip.classed('show', true)
-        .text(`${ d.tag }: ${ d.score }`);
+      if (!isDragged) {
+        tooltip.classed('show', true)
+          .text(`${ d.tag }: ${ d.score }`);
+      }
     })
     .on('mouseout', () => {
       tooltip.classed('show', false);
@@ -125,7 +101,26 @@ export default function draw(dataAsJson) {
       .on('end', dragended)
     );
 
+  d3.selectAll('.js-tag-link')
+    .on('mouseenter', function() {
+      const tag = this.getAttribute('data-tag');
+      animateCircles(tag);
+    })
+    .on('mouseout', function() {
+      const tag = this.getAttribute('data-tag');
+
+      circles.filter(function(d) {
+        return groups[d.tag] === tag
+      })
+        .transition()
+        .duration(400)
+        .attr('r', function(d) {
+          return d.radius;
+        })
+    });
+
   function animateCircles(tag) {
+    console.log('==> ANIMATE');
     circles.filter(function(d) {
       return groups[d.tag] === tag
     })
@@ -148,23 +143,32 @@ export default function draw(dataAsJson) {
       })
   }
 
-  animateCircles();
+  let isDragged = false;
 
-  d3.selectAll('.js-tag-link')
-    .on('mouseenter', function() {
-      const tag = this.getAttribute('data-tag');
-      animateCircles(tag);
-    })
-    .on('mouseout', function() {
-      const tag = this.getAttribute('data-tag');
+  function dragstarted(d) {
+    tooltip.classed('show', false);
+    isDragged = true;
 
-      circles.filter(function(d) {
-        return groups[d.tag] === tag
-      })
-        .transition()
-        .duration(400)
-        .attr('r', function(d) {
-          return d.radius;
-        })
-    })
+    if (!d3.event.active) simulation.alphaTarget(.03).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+  }
+
+  function dragended(d) {
+    isDragged = false;
+    if (!d3.event.active) simulation.alphaTarget(.03);
+    d.fx = null;
+    d.fy = null;
+  }
+
+  function types(d) {
+    d.size = d.score * 1.5;
+    d.size <= 5 ? d.radius = 5 : d.radius = d.size;
+    return d;
+  }
 }
