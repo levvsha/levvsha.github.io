@@ -74,5 +74,6 @@
     "jsx": "reactRedux",
     "mouseover": "basicConcept",
     "frontend": "other",
-    "underscore.js-templating": "utility"
+    "underscore.js-templating": "utility",
+    "graph": "d3dataviz"
 }
