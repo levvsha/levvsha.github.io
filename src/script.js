@@ -7,12 +7,32 @@ import data from '../scores.json';
 
 const nodePadding = 2.5;
 
-// fetch('https://api.stackexchange.com/2.2/users/5806646/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default')
-//   .then(function(response) { return response.json(); })
-//   .then(function(json) {
-//     console.log('JSON.stringify(json.items ==>', JSON.stringify(json.items));
-//     draw(json.items)
-//   });
+const getApiEndPoint = userId => {
+  return `https://api.stackexchange.com/2.2/users/${ userId || 5806646 }/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default`
+};
+
+const fetchAndDraw = userId => {
+  fetch(getApiEndPoint(userId))
+    .then(function(response) { return response.json(); })
+    .then(function(json) {
+      draw(json.items)
+    });
+}
+
+const input = document.getElementById('js-input');
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select('body')
+  .append('svg')
+  .attr('width', width)
+  .attr('height', height);
+
+document.getElementById('js-send-button').addEventListener('click', () => {
+  svg.html('');
+  fetchAndDraw(input.value.split('/')[4]);
+});
 
 draw(data);
 
@@ -21,16 +41,7 @@ export default function draw(dataAsJson) {
     .map(item => ({ tag: item.tag_name, score: item.answer_score }))
     .map(types);
 
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  const svg = d3.select('body')
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height);
-
   const tooltip = d3.select('.js-tooltip');
-
   const color = d3.scaleOrdinal(['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3']);
 
   const simulation = d3.forceSimulation()
@@ -38,11 +49,6 @@ export default function draw(dataAsJson) {
     .force('forceY', d3.forceY().strength(.1).y(height * .5))
     .force('center', d3.forceCenter().x(width * .5).y(height * .5))
     .force('charge', d3.forceManyBody().strength(-15));
-
-  // sort the nodes so that the bigger ones are at the back
-  //   graph = graph.sort(function(a, b) {
-  //     return b.size - a.size;
-  //   });
 
   // update the simulation based on the data
   simulation
@@ -78,7 +84,7 @@ export default function draw(dataAsJson) {
           .text(`${ d.tag }: ${ d.score }`);
       }
     })
-    .on('mouseout', () => {
+    .on('mouseleave', () => {
       tooltip.classed('show', false);
     })
     .on('mousemove', () => {
@@ -103,7 +109,7 @@ export default function draw(dataAsJson) {
     .append('text')
     .text(function(d) { return d.tag; })
     .style('font-size', function(d) {
-      return Math.min(2 * d.score, (2 * d.score - 8) / this.getComputedTextLength() * 24) + 'px';
+      return `${ (2 * d.score - 8) / this.getComputedTextLength() * 24 }px`;
     })
     .attr('dy', '.35em');
 
@@ -112,7 +118,7 @@ export default function draw(dataAsJson) {
       const tag = this.getAttribute('data-tag');
       animateCircles(tag);
     })
-    .on('mouseout', function() {
+    .on('mouseleave', function() {
       const tag = this.getAttribute('data-tag');
 
       circles.filter(function(d) {
@@ -126,7 +132,6 @@ export default function draw(dataAsJson) {
     });
 
   function animateCircles(tag) {
-    console.log('==> ANIMATE');
     circles.filter(function(d) {
       return groups[d.tag] === tag
     })
