@@ -23,6 +23,8 @@ const input = document.getElementById('js-input');
 
 const width = window.innerWidth;
 const height = window.innerHeight;
+const MAX_RADIUS = 116;
+const MAX_AREA = Math.pow(MAX_RADIUS , 2) * Math.PI;
 
 const svg = d3.select('body')
   .append('svg')
@@ -37,12 +39,18 @@ document.getElementById('js-send-button').addEventListener('click', () => {
 draw(data);
 
 export default function draw(dataAsJson) {
+  const areaScaleDomain = d3.extent(dataAsJson, d => d.answer_score);
+
+  const areaScale = d3.scaleLinear()
+    .domain(areaScaleDomain)
+    .range([Math.sqrt((MAX_AREA / areaScaleDomain[0]) / Math.PI), MAX_AREA]);
+
   const processedData = dataAsJson
     .map(item => ({ tag: item.tag_name, score: item.answer_score }))
     .map(types);
 
   const tooltip = d3.select('.js-tooltip');
-  const color = d3.scaleOrdinal(['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3']);
+  const color = d3.scaleOrdinal(d3.schemeCategory20);
 
   const simulation = d3.forceSimulation()
     .force('forceX', d3.forceX().strength(.1).x(width * .5))
@@ -105,11 +113,11 @@ export default function draw(dataAsJson) {
       return color(groups[d.tag] || 'other');
     });
 
-  nodes.filter(d => d.score > 20)
+  nodes.filter(d => d.score > 5)
     .append('text')
     .text(function(d) { return d.tag; })
     .style('font-size', function(d) {
-      return `${ (2 * d.score - 8) / this.getComputedTextLength() * 24 }px`;
+      return `${ (1.5 * d.radius - 12) / this.getComputedTextLength() * 24 }px`;
     })
     .attr('dy', '.35em');
 
@@ -178,8 +186,9 @@ export default function draw(dataAsJson) {
   }
 
   function types(d) {
-    d.size = d.score * 1.5;
-    d.size <= 5 ? d.radius = 5 : d.radius = d.size;
+    d.size =  d.score;
+    d.radius = Math.sqrt(areaScale(d.score) / Math.PI);
+
     return d;
   }
 }
