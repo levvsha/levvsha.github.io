@@ -3,16 +3,13 @@ import './styles.styl';
 import * as d3 from 'd3';
 import _throttle from 'lodash/throttle';
 import groups from '../groupsMapping.json';
-import data from '../scores.json';
-
-import WebFont from 'webfontloader';
 
 const fetchAndDraw = userId => {
   fetch(getApiEndPoint(userId))
-  .then(function(response) { return response.json(); })
-  .then(function(json) {
-    draw(json.items)
-  });
+    .then(function(response) { return response.json(); })
+    .then(function(json) {
+      draw(json.items)
+    });
 }
 
 const nodePadding = 2.5;
@@ -38,21 +35,7 @@ document.getElementById('js-send-button').addEventListener('click', () => {
   fetchAndDraw(input.value.split('/')[4]);
 });
 
-// WebFontConfig = ({
-//   google: {
-//     families:
-//   },
-//   loading: function() {console.log('==> loading'); fetchAndDraw();},
-// });
-
-
-WebFont.load({
-  google: {
-    families: ['Nanum Pen Script']
-  },
-  fontloading: function(familyName) {fetchAndDraw()},
-});
-console.log('==> zazazazazazazazazazazaz');
+fetchAndDraw()
 
 export default function draw(dataAsJson) {
   let isDragged = false;
@@ -61,7 +44,7 @@ export default function draw(dataAsJson) {
 
   const areaScale = d3.scaleLinear()
     .domain(areaScaleDomain)
-    .range([Math.sqrt((MAX_AREA / areaScaleDomain[0]) / Math.PI), MAX_AREA]);
+    .range([MAX_AREA / (areaScaleDomain[1] / areaScaleDomain[0]), MAX_AREA]);
 
   const processedData = dataAsJson
     .map(item => ({ tag: item.tag_name, score: item.answer_score }))
@@ -135,9 +118,10 @@ export default function draw(dataAsJson) {
     .append('text')
     .text(function(d) { return d.tag; })
     .style('font-size', function(d) {
-      const fontSize = (1.5 * d.radius - 24) / this.getComputedTextLength() * 24;
+      console.log('this.getComputedTextLength() ==>', this.getComputedTextLength());
+      const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
 
-      if (fontSize < 13) {
+      if (fontSize < 14) {
         this.remove();
       }
 
