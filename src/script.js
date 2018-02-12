@@ -5,25 +5,27 @@ import _throttle from 'lodash/throttle';
 import groups from '../groupsMapping.json';
 import data from '../scores.json';
 
+import WebFont from 'webfontloader';
+
+const fetchAndDraw = userId => {
+  fetch(getApiEndPoint(userId))
+  .then(function(response) { return response.json(); })
+  .then(function(json) {
+    draw(json.items)
+  });
+}
+
 const nodePadding = 2.5;
 
 const getApiEndPoint = userId => {
   return `https://api.stackexchange.com/2.2/users/${ userId || 5806646 }/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default`
 };
 
-const fetchAndDraw = userId => {
-  fetch(getApiEndPoint(userId))
-    .then(function(response) { return response.json(); })
-    .then(function(json) {
-      draw(json.items)
-    });
-}
-
 const input = document.getElementById('js-input');
 
 const width = window.innerWidth;
 const height = window.innerHeight;
-const MAX_RADIUS = 116;
+const MAX_RADIUS = 150;
 const MAX_AREA = Math.pow(MAX_RADIUS , 2) * Math.PI;
 
 const svg = d3.select('body')
@@ -36,9 +38,25 @@ document.getElementById('js-send-button').addEventListener('click', () => {
   fetchAndDraw(input.value.split('/')[4]);
 });
 
-draw(data);
+// WebFontConfig = ({
+//   google: {
+//     families:
+//   },
+//   loading: function() {console.log('==> loading'); fetchAndDraw();},
+// });
+
+
+WebFont.load({
+  google: {
+    families: ['Nanum Pen Script']
+  },
+  fontloading: function(familyName) {fetchAndDraw()},
+});
+console.log('==> zazazazazazazazazazazaz');
 
 export default function draw(dataAsJson) {
+  let isDragged = false;
+
   const areaScaleDomain = d3.extent(dataAsJson, d => d.answer_score);
 
   const areaScale = d3.scaleLinear()
@@ -113,11 +131,17 @@ export default function draw(dataAsJson) {
       return color(groups[d.tag] || 'other');
     });
 
-  nodes.filter(d => d.score > 5)
+  nodes
     .append('text')
     .text(function(d) { return d.tag; })
     .style('font-size', function(d) {
-      return `${ (1.5 * d.radius - 12) / this.getComputedTextLength() * 24 }px`;
+      const fontSize = (1.5 * d.radius - 24) / this.getComputedTextLength() * 24;
+
+      if (fontSize < 13) {
+        this.remove();
+      }
+
+      return `${ fontSize }px`;
     })
     .attr('dy', '.35em');
 
@@ -161,8 +185,6 @@ export default function draw(dataAsJson) {
           })
       })
   }
-
-  let isDragged = false;
 
   function dragstarted(d) {
     tooltip.classed('show', false);

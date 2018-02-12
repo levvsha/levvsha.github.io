@@ -50,6 +50,7 @@
     "eslint-plugin-import": "^2.8.0",
     "eslint-plugin-jsx-a11y": "6.0.3",
     "eslint-plugin-react": "^7.5.1",
+    "express": "^4.16.2",
     "extract-text-webpack-plugin": "^2.1.0",
     "file-loader": "^0.11.1",
     "ghooks": "^2.0.0",
