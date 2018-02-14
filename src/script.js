@@ -2,7 +2,12 @@ import './styles.styl';
 
 import * as d3 from 'd3';
 import _throttle from 'lodash/throttle';
+// import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
+
+import { interpolateWarm } from 'd3-scale-chromatic';
+
+// const colorInterpolation = d3.scaleSequential(interpolateWarm);
 
 const fetchAndDraw = userId => {
   fetch(getApiEndPoint(userId))
@@ -35,7 +40,7 @@ document.getElementById('js-send-button').addEventListener('click', () => {
   fetchAndDraw(input.value.split('/')[4]);
 });
 
-fetchAndDraw()
+fetchAndDraw();
 
 export default function draw(dataAsJson) {
   let isDragged = false;
@@ -49,6 +54,13 @@ export default function draw(dataAsJson) {
   const processedData = dataAsJson
     .map(item => ({ tag: item.tag_name, score: item.answer_score }))
     .map(types);
+
+  // const colorScale = d3.scaleLinear()
+  //   .domain([0, _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 1))])
+  //   .range([0, 1]);
+
+  // const getColorByScore = (d) => colorInterpolation(colorScale(d.score));
+  const getColorByTag = (d) => (color(groups[d.tag] || 'other'));
 
   const tooltip = d3.select('.js-tooltip');
   const color = d3.scaleOrdinal(d3.schemeCategory20);
@@ -110,15 +122,12 @@ export default function draw(dataAsJson) {
     .attr('r', function(d) {
       return d.radius;
     })
-    .attr('fill', function(d) {
-      return color(groups[d.tag] || 'other');
-    });
+    .attr('fill', getColorByTag);
 
   nodes
     .append('text')
     .text(function(d) { return d.tag; })
     .style('font-size', function(d) {
-      console.log('this.getComputedTextLength() ==>', this.getComputedTextLength());
       const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
 
       if (fontSize < 14) {
@@ -156,7 +165,7 @@ export default function draw(dataAsJson) {
           .transition()
           .duration(400)
           .attr('r', function(d) {
-            return d.radius - 5;
+            return d.radius - 3;
           })
           .on('end', function() {
             d3.select(this)
