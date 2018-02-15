@@ -2,18 +2,18 @@ import './styles.styl';
 
 import * as d3 from 'd3';
 import _throttle from 'lodash/throttle';
-// import _ceil from 'lodash/ceil';
+import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
 
 import { interpolateWarm } from 'd3-scale-chromatic';
 
-// const colorInterpolation = d3.scaleSequential(interpolateWarm);
+const colorInterpolation = d3.scaleSequential(interpolateWarm);
 
-const fetchAndDraw = userId => {
+const fetchAndDraw = (userId, useColorByScore) => {
   fetch(getApiEndPoint(userId))
     .then(function(response) { return response.json(); })
     .then(function(json) {
-      draw(json.items)
+      draw(json.items, userId && useColorByScore)
     });
 }
 
@@ -37,12 +37,42 @@ const svg = d3.select('body')
 
 document.getElementById('js-send-button').addEventListener('click', () => {
   svg.html('');
-  fetchAndDraw(input.value.split('/')[4]);
+  fetchAndDraw(input.value.split('/')[4], true);
 });
 
 fetchAndDraw();
 
-export default function draw(dataAsJson) {
+const linearScale = d3.scaleLinear()
+  .domain([0, 100])
+  .range([0, 600]);
+
+const sequentialScale = d3.scaleSequential()
+  .domain([0, 100]);
+
+const myData = d3.range(0, 200, 2);
+
+sequentialScale
+  .interpolator(d3.interpolateWarm);
+
+const legend = d3.select('#wrapper svg g')
+  .append('g')
+  .attr('class', 'interpolator');
+
+legend
+  .selectAll('rect')
+  .data(myData)
+  .enter()
+  .append('rect')
+  .attr('x', function(d) {
+    return linearScale(d);
+  })
+  .attr('width', 11)
+  .attr('height', 30)
+  .style('fill', function(d) {
+    return sequentialScale(d);
+  });
+
+export default function draw(dataAsJson, useColorByScore) {
   let isDragged = false;
 
   const areaScaleDomain = d3.extent(dataAsJson, d => d.answer_score);
@@ -55,15 +85,16 @@ export default function draw(dataAsJson) {
     .map(item => ({ tag: item.tag_name, score: item.answer_score }))
     .map(types);
 
-  // const colorScale = d3.scaleLinear()
-  //   .domain([0, _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 1))])
-  //   .range([0, 1]);
+  const colorScale = d3.scaleLinear()
+    .domain([0, _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 1))])
+    .range([0, 1]);
 
-  // const getColorByScore = (d) => colorInterpolation(colorScale(d.score));
+  const color = d3.scaleOrdinal(d3.schemeCategory20);
+
+  const getColorByScore = (d) => colorInterpolation(colorScale(d.score));
   const getColorByTag = (d) => (color(groups[d.tag] || 'other'));
 
   const tooltip = d3.select('.js-tooltip');
-  const color = d3.scaleOrdinal(d3.schemeCategory20);
 
   const simulation = d3.forceSimulation()
     .force('forceX', d3.forceX().strength(.1).x(width * .5))
@@ -71,7 +102,6 @@ export default function draw(dataAsJson) {
     .force('center', d3.forceCenter().x(width * .5).y(height * .5))
     .force('charge', d3.forceManyBody().strength(-15));
 
-  // update the simulation based on the data
   simulation
     .nodes(processedData)
     .force('collide', d3.forceCollide().strength(.5).radius(function(d) {
@@ -122,7 +152,7 @@ export default function draw(dataAsJson) {
     .attr('r', function(d) {
       return d.radius;
     })
-    .attr('fill', getColorByTag);
+    .attr('fill', useColorByScore ? getColorByScore : getColorByTag);
 
   nodes
     .append('text')
