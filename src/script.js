@@ -5,10 +5,6 @@ import _throttle from 'lodash/throttle';
 import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
 
-import { interpolateWarm } from 'd3-scale-chromatic';
-
-const colorInterpolation = d3.scaleSequential(interpolateWarm);
-
 const fetchAndDraw = (userId, useColorByScore) => {
   fetch(getApiEndPoint(userId))
     .then(function(response) { return response.json(); })
@@ -42,38 +38,10 @@ document.getElementById('js-send-button').addEventListener('click', () => {
 
 fetchAndDraw();
 
-const linearScale = d3.scaleLinear()
-  .domain([0, 100])
-  .range([0, 600]);
-
-const sequentialScale = d3.scaleSequential()
-  .domain([0, 100]);
-
-const myData = d3.range(0, 200, 2);
-
-sequentialScale
-  .interpolator(d3.interpolateWarm);
-
-const legend = d3.select('#wrapper svg g')
-  .append('g')
-  .attr('class', 'interpolator');
-
-legend
-  .selectAll('rect')
-  .data(myData)
-  .enter()
-  .append('rect')
-  .attr('x', function(d) {
-    return linearScale(d);
-  })
-  .attr('width', 11)
-  .attr('height', 30)
-  .style('fill', function(d) {
-    return sequentialScale(d);
-  });
-
 export default function draw(dataAsJson, useColorByScore) {
   let isDragged = false;
+
+  const legendWidth = 600;
 
   const areaScaleDomain = d3.extent(dataAsJson, d => d.answer_score);
 
@@ -86,13 +54,74 @@ export default function draw(dataAsJson, useColorByScore) {
     .map(types);
 
   const colorScale = d3.scaleLinear()
-    .domain([0, _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 1))])
-    .range([0, 1]);
+    .domain([0, _ceil(areaScaleDomain[1], -1) / 2, _ceil(areaScaleDomain[1], -1)])
+    .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
 
   const color = d3.scaleOrdinal(d3.schemeCategory20);
 
-  const getColorByScore = (d) => colorInterpolation(colorScale(d.score));
+  const getColorByScore = (d) => colorScale(d.score);
   const getColorByTag = (d) => (color(groups[d.tag] || 'other'));
+  console.log('_ceil(areaScaleDomain[1] ==>', _ceil(areaScaleDomain[1]));
+  const countScale = d3.scaleLinear()
+    .domain([0, _ceil(areaScaleDomain[1], -1)])
+    .range([0, legendWidth]);
+
+  //Calculate the variables for the temp gradient
+  const numStops = 10;
+  const countRange = countScale.domain();
+  countRange[2] = countRange[1] - countRange[0];
+  const countPoint = [];
+  for(var i = 0; i < numStops; i++) {
+    countPoint.push(i * countRange[2]/(numStops-1) + countRange[0]);
+  }//for i
+
+  //Create the gradient
+  svg.append('defs')
+    .append('linearGradient')
+    .attr('id', 'legend-traffic')
+    .attr('x1', '0%').attr('y1', '0%')
+    .attr('x2', '100%').attr('y2', '0%')
+    .selectAll('stop')
+    .data(d3.range(10))
+    .enter().append('stop')
+    .attr('offset', function(d,i) {
+      return countScale( countPoint[i] )/legendWidth;
+    })
+    .attr('stop-color', function(d,i) {
+      return colorScale( countPoint[i] );
+    });
+
+  const legendsvg = svg.append('g')
+    .attr('class', 'legendWrapper')
+    .attr('transform', 'translate(' + (width/2) + ',80)');
+
+  legendsvg.append('rect')
+    .attr('class', 'legendRect')
+    .attr('x', -legendWidth/2)
+    .attr('y', 0)
+    .attr('width', legendWidth)
+    .attr('height', 10)
+    .style('fill', 'url(#legend-traffic)');
+
+  legendsvg.append('text')
+    .attr('class', 'legendTitle')
+    .attr('x', 0)
+    .attr('y', -10)
+    .style('text-anchor', 'middle')
+    .text('Scores');
+
+  const xScale = d3.scaleLinear()
+    .range([-legendWidth/2, legendWidth/2])
+    .domain([0, _ceil(areaScaleDomain[1])]);
+
+  const xAxis = d3.axisBottom()
+    .scale(xScale)
+    .tickValues(xScale.ticks(4).concat( xScale.domain() ));
+
+  legendsvg.append('g')
+    .attr('class', 'axis')
+    .attr('transform', 'translate(0,' + (10) + ')')
+    .call(xAxis);
 
   const tooltip = d3.select('.js-tooltip');
 
@@ -152,7 +181,7 @@ export default function draw(dataAsJson, useColorByScore) {
     .attr('r', function(d) {
       return d.radius;
     })
-    .attr('fill', useColorByScore ? getColorByScore : getColorByTag);
+    .attr('fill', getColorByScore);
 
   nodes
     .append('text')
