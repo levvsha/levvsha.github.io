@@ -29,7 +29,7 @@ document.getElementById('js-send-button').addEventListener('click', () => {
   fetchAndDraw(input.value.split('/')[4], true);
 });
 
-fetchAndDraw();
+export default () => fetchAndDraw();
 
 const svg = d3.select('body')
   .append('svg')
@@ -38,6 +38,13 @@ const svg = d3.select('body')
 
 class Vizualization {
   constructor(rawData, useColorByScore) {
+    this.sizes = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      maxRadius: MAX_RADIUS,
+      maxArea: Math.pow(MAX_RADIUS , 2) * Math.PI
+    };
+
     this.nodes = {
       rootSvg: svg,
       circleGroup: null,
@@ -52,44 +59,62 @@ class Vizualization {
       colorScheme: null
     };
 
-    this.data = this.getProcessedData(rawData);
+    this.isDragged = false;
+
+    // this.calculateScales(this.data);
+    // this.data = this.getProcessedData(rawData);
+
+    this.createSkeleton();
+    // this.updateWithData(this.data);
+    this.bindEvents() ;
 
     this.moveTooltip = _throttle(this.moveTooltip, 300);
-
-    this.calculateScales();
-    this.drawCircles(this.data); // drawSkeleton
-    this.fillWithData();
-    this.bindEvents();
   }
 
   bindEvents() {
+    this.nodes.tagLinks
+      .on('mouseenter', function() {
+        const tag = this.getAttribute('data-tag');
+        this.animateCircles(tag);
+      })
+      .on('mouseleave', function() {
+        const tag = this.getAttribute('data-tag');
 
-  }
-
-  calculateScales() {
-
-  }
-
-  getProcessedData(dataAsJson) {
-    return dataAsJson
-      .map(item => ({ tag: item.tag_name, score: item.answer_score }))
-      .map(d => {
-        d.size =  d.score;
-        d.radius = Math.sqrt(this.scales.circleAreaScale(d.score) / Math.PI);
-
-        return d;
+        this.nodes.circles.filter(function(d) {
+          return groups[d.tag] === tag
+        })
+          .transition()
+          .duration(400)
+          .attr('r', function(d) {
+            return d.radius;
+          })
       });
   }
 
-  moveTooltip(left, top) {
-    this.nodes.tooltip
-      .style('left', `${ left }px`)
-      .style('top', `${ top }px`);
+  animateCircles(tag) {
+    this.nodes.circles.filter(function(d) {
+      return groups[d.tag] === tag
+    })
+      .each(function() {
+        d3.select(this)
+          .transition()
+          .duration(400)
+          .attr('r', function(d) {
+            return d.radius - 3;
+          })
+          .on('end', function() {
+            d3.select(this)
+              .transition()
+              .duration(400)
+              .attr('r', function(d) {
+                return d.radius;
+              })
+              .on('end', () => this.animateCircles(tag))
+          })
+      })
   }
 
-  drawCircles(data, useColorByScore) {
-    let isDragged = false;
-
+  calculateScales(data) {
     const areaScaleDomain = d3.extent(data, d => d.score);
 
     this.scales.circleAreaScale = d3.scaleLinear()
@@ -103,9 +128,38 @@ class Vizualization {
       .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
 
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
+  }
 
-    this.getColorByScore = (d) => this.scales.colorScale(d.score);
-    this.getColorByTag = (d) => (this.scales.colorScheme(groups[d.tag] || 'other'));
+  getProcessedData(dataAsJson) {
+    return dataAsJson
+      .map(item => ({ tag: item.tag_name, score: item.answer_score }))
+      .map(d => {
+        d.size =  d.score;
+        d.radius = Math.sqrt(this.scales.circleAreaScale(d.score) / Math.PI);
+
+        return d;
+      });
+  }
+
+  getColorByScore(d) {
+    return this.scales.colorScale(d.score);
+  }
+
+  getColorByTag(d) {
+    return this.scales.colorScheme(groups[d.tag] || 'other')
+  }
+
+  moveTooltip(left, top) {
+    this.nodes.tooltip
+      .style('left', `${ left }px`)
+      .style('top', `${ top }px`);
+  }
+
+  createSkeleton() {
+
+
+
+
 
     // drawLegend(upperValueForScale);
 
@@ -115,42 +169,41 @@ class Vizualization {
       .force('center', d3.forceCenter().x(width * .5).y(height * .5))
       .force('charge', d3.forceManyBody().strength(-15));
 
-    this.simulation
-      .nodes(this.data)
-      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1))
-      .on('tick', () => {
-        this.nodes.circleGroup
-          .attr('transform', d => `translate(${ d.x },${ d.y })`);
-      });
+    // this.simulation
+    //   .nodes(this.data)
+    //   .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1))
+    // .on('tick', () => {
+    //   this.nodes.circleGroup.attr('transform', d => `translate(${ d.x },${ d.y })`);
+    // });
 
     this.nodes.circleGroup = svg.append('g')
       .attr('class', 'nodes')
-      .selectAll('.node')
-      .data(this.processedData)
-      .enter()
-      .append('g')
-      .attr('class', 'node')
-      .attr('transform', function(d) {
-        return `translate(${ d.x },${ d.y })`;
-      })
-      .on('mouseenter', (d) => {
-        if (!isDragged) {
-          this.nodes.tooltip.classed('show', true)
-            .text(`${ d.tag }: ${ d.score }`);
-        }
-      })
-      .on('mouseleave', () => {
-        this.nodes.tooltip.classed('show', false);
-      })
-      .on('mousemove', () => {
-        const { clientX, clientY } = d3.event;
-        this.moveTooltip(clientX, clientY);
-      })
-      .call(d3.drag()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended)
-      );
+    // .selectAll('.node')
+    // .data(this.processedData)
+    // .enter()
+    // .append('g')
+    // .attr('class', 'node')
+    // .attr('transform', function(d) {
+    //   return `translate(${ d.x },${ d.y })`;
+    // })
+    // .on('mouseenter', (d) => {
+    //   if (!this.isDragged) {
+    //     this.nodes.tooltip.classed('show', true)
+    //       .text(`${ d.tag }: ${ d.score }`);
+    //   }
+    // })
+    // .on('mouseleave', () => {
+    //   this.nodes.tooltip.classed('show', false);
+    // })
+    // .on('mousemove', () => {
+    //   const { clientX, clientY } = d3.event;
+    //   this.moveTooltip(clientX, clientY);
+    // })
+    // .call(d3.drag()
+    //   .on('start', dragstarted)
+    //   .on('drag', dragged)
+    //   .on('end', dragended)
+    // );
 
     this.nodes.circles = this.nodes.circleGroup.append('circle')
       .attr('r', function(d) {
@@ -172,50 +225,9 @@ class Vizualization {
       })
       .attr('dy', '.35em');
 
-    this.nodes.tagLinks
-      .on('mouseenter', function() {
-        const tag = this.getAttribute('data-tag');
-        animateCircles(tag);
-      })
-      .on('mouseleave', function() {
-        const tag = this.getAttribute('data-tag');
-
-        this.nodes.circles.filter(function(d) {
-          return groups[d.tag] === tag
-        })
-          .transition()
-          .duration(400)
-          .attr('r', function(d) {
-            return d.radius;
-          })
-      });
-
-    function animateCircles(tag) {
-      this.nodes.circles.filter(function(d) {
-        return groups[d.tag] === tag
-      })
-        .each(function() {
-          d3.select(this)
-            .transition()
-            .duration(400)
-            .attr('r', function(d) {
-              return d.radius - 3;
-            })
-            .on('end', function() {
-              d3.select(this)
-                .transition()
-                .duration(400)
-                .attr('r', function(d) {
-                  return d.radius;
-                })
-                .on('end', () => animateCircles(tag))
-            })
-        })
-    }
-
     function dragstarted(d) {
       this.nodes.tooltip.classed('show', false);
-      isDragged = true;
+      this.isDragged = true;
 
       if (!d3.event.active) {
         this.simulation.alphaTarget(.03).restart();
@@ -231,7 +243,7 @@ class Vizualization {
     }
 
     function dragended(d) {
-      isDragged = false;
+      this.isDragged = false;
 
       if (!d3.event.active) {
         this.simulation.alphaTarget(.03);
@@ -247,71 +259,70 @@ class Vizualization {
   }
 }
 
-// function draw(dataAsJson, useColorByScore) {
 
-// function drawLegend(upperValueForScale) {
-//   const legendWidth = 600;
-//
-//   const countScale = d3.scaleLinear()
-//     .domain([0, upperValueForScale])
-//     .range([0, legendWidth]);
-//
-//   const numStops = 10;
-//   const countRange = countScale.domain();
-//   countRange[2] = countRange[1] - countRange[0];
-//   const countPoint = [];
-//   for(var i = 0; i < numStops; i++) {
-//     countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
-//   }
-//
-//   svg.append('defs')
-//     .append('linearGradient')
-//     .attr('id', 'legend-traffic')
-//     .attr('x1', '0%').attr('y1', '0%')
-//     .attr('x2', '100%').attr('y2', '0%')
-//     .selectAll('stop')
-//     .data(d3.range(10))
-//     .enter().append('stop')
-//     .attr('offset', function(d,i) {
-//       return countScale( countPoint[i] )/legendWidth;
-//     })
-//     .attr('stop-color', function(d,i) {
-//       return this.scales.colorScale( countPoint[i] );
-//     });
-//
-//   const legendsvg = svg.append('g')
-//     .attr('class', 'legendWrapper')
-//     .attr('transform', 'translate(' + (width/2) + ',80)');
-//
-//   legendsvg.append('rect')
-//     .attr('class', 'legendRect')
-//     .attr('x', -legendWidth/2)
-//     .attr('y', 0)
-//     .attr('width', legendWidth)
-//     .attr('height', 10)
-//     .style('fill', 'url(#legend-traffic)');
-//
-//   legendsvg.append('text')
-//     .attr('class', 'legendTitle')
-//     .attr('x', 0)
-//     .attr('y', -10)
-//     .style('text-anchor', 'middle')
-//     .text('Scores');
-//
-//   const xScale = d3.scaleLinear()
-//     .range([-legendWidth/2, legendWidth/2])
-//     .domain([0, upperValueForScale]);
-//
-//   const xAxis = d3.axisBottom()
-//     .scale(xScale)
-//     .tickValues(xScale.ticks(4).concat(xScale.domain()));
-//
-//   legendsvg.append('g')
-//     .attr('class', 'axis')
-//     .attr('transform', 'translate(0,' + (10) + ')')
-//     .call(xAxis);
-// }
-// function update() {
-//   const nodes
-// }
-// }
+function drawLegend(upperValueForScale) {
+  const legendWidth = 600;
+
+  const countScale = d3.scaleLinear()
+    .domain([0, upperValueForScale])
+    .range([0, legendWidth]);
+
+  const numStops = 10;
+  const countRange = countScale.domain();
+  countRange[2] = countRange[1] - countRange[0];
+  const countPoint = [];
+  for(var i = 0; i < numStops; i++) {
+    countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
+  }
+
+  svg.append('defs')
+    .append('linearGradient')
+    .attr('id', 'legend-traffic')
+    .attr('x1', '0%').attr('y1', '0%')
+    .attr('x2', '100%').attr('y2', '0%')
+    .selectAll('stop')
+    .data(d3.range(10))
+    .enter().append('stop')
+    .attr('offset', function(d,i) {
+      return countScale( countPoint[i] )/legendWidth;
+    })
+    .attr('stop-color', function(d,i) {
+      return this.scales.colorScale( countPoint[i] );
+    });
+
+  const legendsvg = svg.append('g')
+    .attr('class', 'legendWrapper')
+    .attr('transform', 'translate(' + (width/2) + ',80)');
+
+  legendsvg.append('rect')
+    .attr('class', 'legendRect')
+    .attr('x', -legendWidth/2)
+    .attr('y', 0)
+    .attr('width', legendWidth)
+    .attr('height', 10)
+    .style('fill', 'url(#legend-traffic)');
+
+  legendsvg.append('text')
+    .attr('class', 'legendTitle')
+    .attr('x', 0)
+    .attr('y', -10)
+    .style('text-anchor', 'middle')
+    .text('Scores');
+
+  const xScale = d3.scaleLinear()
+    .range([-legendWidth/2, legendWidth/2])
+    .domain([0, upperValueForScale]);
+
+  const xAxis = d3.axisBottom()
+    .scale(xScale)
+    .tickValues(xScale.ticks(4).concat(xScale.domain()));
+
+  legendsvg.append('g')
+    .attr('class', 'axis')
+    .attr('transform', 'translate(0,' + (10) + ')')
+    .call(xAxis);
+}
+function update() {
+  const nodes
+}
+}
