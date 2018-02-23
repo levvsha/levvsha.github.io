@@ -7,7 +7,7 @@ import groups from '../groupsMapping.json';
 
 const fetchAndDraw = (userId, useColorByScore) => {
   fetch(getApiEndPoint(userId))
-    .then(function(response) { return response.json(); })
+    .then(response => response.json())
     .then(function(json) {
       new Vizualization(json.items, userId && useColorByScore)
     });
@@ -18,11 +18,7 @@ const getApiEndPoint = userId => {
 };
 
 const input = document.getElementById('js-input');
-
-const width = window.innerWidth;
-const height = window.innerHeight;
 const MAX_RADIUS = 150;
-const MAX_AREA = Math.pow(MAX_RADIUS , 2) * Math.PI;
 
 document.getElementById('js-send-button').addEventListener('click', () => {
   svg.html('');
@@ -32,9 +28,7 @@ document.getElementById('js-send-button').addEventListener('click', () => {
 export default () => fetchAndDraw();
 
 const svg = d3.select('body')
-  .append('svg')
-  .attr('width', width)
-  .attr('height', height);
+  .append('svg');
 
 class Vizualization {
   constructor(rawData, useColorByScore) {
@@ -46,7 +40,7 @@ class Vizualization {
     };
 
     this.nodes = {
-      rootSvg: svg,
+      svg: svg,
       circleGroup: null,
       circles: null,
       tooltip: d3.select('.js-tooltip'),
@@ -61,65 +55,18 @@ class Vizualization {
 
     this.isDragged = false;
 
-    // this.calculateScales(this.data);
-    // this.data = this.getProcessedData(rawData);
-
-    this.createSkeleton();
-    // this.updateWithData(this.data);
+    this.initialDraw(rawData);
     this.bindEvents() ;
 
     this.moveTooltip = _throttle(this.moveTooltip, 300);
   }
 
-  bindEvents() {
-    this.nodes.tagLinks
-      .on('mouseenter', function() {
-        const tag = this.getAttribute('data-tag');
-        this.animateCircles(tag);
-      })
-      .on('mouseleave', function() {
-        const tag = this.getAttribute('data-tag');
-
-        this.nodes.circles.filter(function(d) {
-          return groups[d.tag] === tag
-        })
-          .transition()
-          .duration(400)
-          .attr('r', function(d) {
-            return d.radius;
-          })
-      });
-  }
-
-  animateCircles(tag) {
-    this.nodes.circles.filter(function(d) {
-      return groups[d.tag] === tag
-    })
-      .each(function() {
-        d3.select(this)
-          .transition()
-          .duration(400)
-          .attr('r', function(d) {
-            return d.radius - 3;
-          })
-          .on('end', function() {
-            d3.select(this)
-              .transition()
-              .duration(400)
-              .attr('r', function(d) {
-                return d.radius;
-              })
-              .on('end', () => this.animateCircles(tag))
-          })
-      })
-  }
-
-  calculateScales(data) {
-    const areaScaleDomain = d3.extent(data, d => d.score);
+  initialDraw(rawData) {
+    const areaScaleDomain = d3.extent(rawData, d => d.answer_score);
 
     this.scales.circleAreaScale = d3.scaleLinear()
       .domain(areaScaleDomain)
-      .range([MAX_AREA / (areaScaleDomain[1] / areaScaleDomain[0]), MAX_AREA]);
+      .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
 
     const upperValueForScale = _ceil(areaScaleDomain[1], -1);
 
@@ -128,10 +75,118 @@ class Vizualization {
       .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
 
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
+
+    this.data = this.getProcessedData(rawData);
+
+    this.simulation = d3.forceSimulation()
+      .force('forceX', d3.forceX().strength(.1).x(this.sizes.width * .5))
+      .force('forceY', d3.forceY().strength(.1).y(this.sizes.height * .5))
+      .force('center', d3.forceCenter().x(this.sizes.width * .5).y(this.sizes.height * .5))
+      .force('charge', d3.forceManyBody().strength(-15));
+
+    this.simulation
+      .nodes(this.data)
+      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1));
+
+    this.nodes.svg
+      .attr('width', this.sizes.width)
+      .attr('height', this.sizes.height);
+
+    this.nodes.circleGroup = this.nodes.svg
+      .append('g')
+      .attr('class', 'nodes')
+      .selectAll('.node')
+      .data(this.data)
+      .enter()
+      .append('g')
+      .attr('class', 'node')
+      .attr('transform', d => `translate(${ d.x },${ d.y })`);
+
+    this.nodes.circles = this.nodes.circleGroup.append('circle')
+      .attr('r', function(d) {
+        return d.radius;
+      })
+      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
+
+    this.nodes.circleGroup
+      .append('text')
+      .text(function(d) { return d.tag; })
+      .style('font-size', function(d) {
+        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
+
+        if (fontSize < 14) {
+          this.remove();
+        }
+
+        return `${ fontSize }px`;
+      })
+      .attr('dy', '.35em');
   }
 
-  getProcessedData(dataAsJson) {
-    return dataAsJson
+  bindEvents() {
+    const component = this;
+
+    this.simulation
+      .on('tick', () => {
+        this.nodes.circleGroup.attr('transform', d => `translate(${ d.x },${ d.y })`);
+      });
+
+    this.nodes.circleGroup
+      .on('mouseenter', (d) => {
+        if (!this.isDragged) {
+          this.nodes.tooltip.classed('show', true)
+            .text(`${ d.tag }: ${ d.score }`);
+        }
+      })
+      .on('mouseleave', () => {
+        this.nodes.tooltip.classed('show', false);
+      })
+      .on('mousemove', () => {
+        const { clientX, clientY } = d3.event;
+        this.moveTooltip(clientX, clientY);
+      })
+      .call(d3.drag()
+        .on('start', d => this.dragstarted(d))
+        .on('drag', d => this.dragged(d))
+        .on('end', d => this.dragended(d))
+      );
+
+    this.nodes.tagLinks
+      .on('mouseenter', function() {
+        const tag = this.getAttribute('data-tag');
+
+        component.animateCircles(tag);
+      })
+      .on('mouseleave', function() {
+        const tag = this.getAttribute('data-tag');
+
+        component.nodes.circles.filter(d => groups[d.tag] === tag)
+          .transition()
+          .duration(d => d.radius)
+      });
+  }
+
+  animateCircles(tag) {
+    const component = this;
+
+    this.nodes.circles.filter(d => groups[d.tag] === tag)
+      .each(function() {
+        d3.select(this)
+          .transition()
+          .duration(400)
+          .attr('r', d => d.radius - 3)
+          .on('end', function() {
+            d3.select(this)
+              .transition()
+              .duration(400)
+              .attr('r', d => d.radius)
+              .on('end', () => component.animateCircles(tag))
+          })
+      })
+  }
+
+  getProcessedData(rawData) {
+    return rawData
       .map(item => ({ tag: item.tag_name, score: item.answer_score }))
       .map(d => {
         d.size =  d.score;
@@ -155,110 +210,34 @@ class Vizualization {
       .style('top', `${ top }px`);
   }
 
-  createSkeleton() {
+  dragstarted(d) {
+    this.nodes.tooltip.classed('show', false);
+    this.isDragged = true;
 
-
-
-
-
-    // drawLegend(upperValueForScale);
-
-    this.simulation = d3.forceSimulation()
-      .force('forceX', d3.forceX().strength(.1).x(width * .5))
-      .force('forceY', d3.forceY().strength(.1).y(height * .5))
-      .force('center', d3.forceCenter().x(width * .5).y(height * .5))
-      .force('charge', d3.forceManyBody().strength(-15));
-
-    // this.simulation
-    //   .nodes(this.data)
-    //   .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1))
-    // .on('tick', () => {
-    //   this.nodes.circleGroup.attr('transform', d => `translate(${ d.x },${ d.y })`);
-    // });
-
-    this.nodes.circleGroup = svg.append('g')
-      .attr('class', 'nodes')
-    // .selectAll('.node')
-    // .data(this.processedData)
-    // .enter()
-    // .append('g')
-    // .attr('class', 'node')
-    // .attr('transform', function(d) {
-    //   return `translate(${ d.x },${ d.y })`;
-    // })
-    // .on('mouseenter', (d) => {
-    //   if (!this.isDragged) {
-    //     this.nodes.tooltip.classed('show', true)
-    //       .text(`${ d.tag }: ${ d.score }`);
-    //   }
-    // })
-    // .on('mouseleave', () => {
-    //   this.nodes.tooltip.classed('show', false);
-    // })
-    // .on('mousemove', () => {
-    //   const { clientX, clientY } = d3.event;
-    //   this.moveTooltip(clientX, clientY);
-    // })
-    // .call(d3.drag()
-    //   .on('start', dragstarted)
-    //   .on('drag', dragged)
-    //   .on('end', dragended)
-    // );
-
-    this.nodes.circles = this.nodes.circleGroup.append('circle')
-      .attr('r', function(d) {
-        return d.radius;
-      })
-      .attr('fill', /* useColorByScore ? */ this.getColorByScore /* : getColorByTag */);
-
-    this.nodes.circleGroup
-      .append('text')
-      .text(function(d) { return d.tag; })
-      .style('font-size', function(d) {
-        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
-
-        if (fontSize < 14) {
-          this.remove();
-        }
-
-        return `${ fontSize }px`;
-      })
-      .attr('dy', '.35em');
-
-    function dragstarted(d) {
-      this.nodes.tooltip.classed('show', false);
-      this.isDragged = true;
-
-      if (!d3.event.active) {
-        this.simulation.alphaTarget(.03).restart();
-      }
-
-      d.fx = d.x;
-      d.fy = d.y;
+    if (!d3.event.active) {
+      this.simulation.alphaTarget(.03).restart();
     }
 
-    function dragged(d) {
-      d.fx = d3.event.x;
-      d.fy = d3.event.y;
-    }
-
-    function dragended(d) {
-      this.isDragged = false;
-
-      if (!d3.event.active) {
-        this.simulation.alphaTarget(.03);
-      }
-
-      d.fx = null;
-      d.fy = null;
-    }
+    d.fx = d.x;
+    d.fy = d.y;
   }
 
-  drawLegend() {
+  dragged(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+  }
 
+  dragended(d) {
+    this.isDragged = false;
+
+    if (!d3.event.active) {
+      this.simulation.alphaTarget(.03);
+    }
+
+    d.fx = null;
+    d.fy = null;
   }
 }
-
 
 function drawLegend(upperValueForScale) {
   const legendWidth = 600;
@@ -321,8 +300,4 @@ function drawLegend(upperValueForScale) {
     .attr('class', 'axis')
     .attr('transform', 'translate(0,' + (10) + ')')
     .call(xAxis);
-}
-function update() {
-  const nodes
-}
 }
