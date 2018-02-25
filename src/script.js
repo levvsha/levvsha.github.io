@@ -74,6 +74,12 @@ class Vizualization {
       .domain([0, upperValueForScale / 2, upperValueForScale])
       .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
 
+    this.gradientLegend = new GradientLegend(this.nodes.svg, {
+      upperValueForScale,
+      containerWidth: this.sizes.width,
+      colorScale: this.scales.colorScale
+    });
+
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
 
     this.data = this.getProcessedData(rawData);
@@ -239,65 +245,78 @@ class Vizualization {
   }
 }
 
-function drawLegend(upperValueForScale) {
-  const legendWidth = 600;
+class GradientLegend {
+  constructor(node, options) {
+    this.options = options;
+    this.rootNode = node;
 
-  const countScale = d3.scaleLinear()
-    .domain([0, upperValueForScale])
-    .range([0, legendWidth]);
+    this.sizes = {
+      width: 600
+    };
 
-  const numStops = 10;
-  const countRange = countScale.domain();
-  countRange[2] = countRange[1] - countRange[0];
-  const countPoint = [];
-  for(var i = 0; i < numStops; i++) {
-    countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
+    const legendScale = d3.scaleLinear()
+      .domain([0, options.upperValueForScale])
+      .range([0, this.sizes.width]);
+
+    this.scales = {
+      legendScale,
+      colorScale: options.colorScale
+    };
+
+    this.drawLegend();
   }
 
-  svg.append('defs')
-    .append('linearGradient')
-    .attr('id', 'legend-traffic')
-    .attr('x1', '0%').attr('y1', '0%')
-    .attr('x2', '100%').attr('y2', '0%')
-    .selectAll('stop')
-    .data(d3.range(10))
-    .enter().append('stop')
-    .attr('offset', function(d,i) {
-      return countScale( countPoint[i] )/legendWidth;
-    })
-    .attr('stop-color', function(d,i) {
-      return this.scales.colorScale( countPoint[i] );
-    });
+  drawLegend() {
+    const numStops = 10;
+    const countRange = this.scales.legendScale.domain();
+    countRange[2] = countRange[1] - countRange[0];
+    const countPoint = [];
 
-  const legendsvg = svg.append('g')
-    .attr('class', 'legendWrapper')
-    .attr('transform', 'translate(' + (width/2) + ',80)');
+    for(var i = 0; i < numStops; i++) {
+      countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
+    }
 
-  legendsvg.append('rect')
-    .attr('class', 'legendRect')
-    .attr('x', -legendWidth/2)
-    .attr('y', 0)
-    .attr('width', legendWidth)
-    .attr('height', 10)
-    .style('fill', 'url(#legend-traffic)');
+    this.rootNode.append('defs')
+      .append('linearGradient')
+      .attr('id', 'legend-traffic')
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '100%').attr('y2', '0%')
+      .selectAll('stop')
+      .data(d3.range(10))
+      .enter().append('stop')
+      .attr('offset', (d,i) => this.scales.legendScale(countPoint[i]) / this.sizes.width)
+      .attr('stop-color', (d,i) => this.scales.colorScale(countPoint[i]));
 
-  legendsvg.append('text')
-    .attr('class', 'legendTitle')
-    .attr('x', 0)
-    .attr('y', -10)
-    .style('text-anchor', 'middle')
-    .text('Scores');
+    const legendsvg = svg.append('g')
+      .attr('class', 'legendWrapper')
+      .attr('transform', `translate(${ this.options.containerWidth / 2 },80)`);
 
-  const xScale = d3.scaleLinear()
-    .range([-legendWidth/2, legendWidth/2])
-    .domain([0, upperValueForScale]);
+    legendsvg.append('rect')
+      .attr('class', 'legendRect')
+      .attr('x', -this.sizes.width / 2)
+      .attr('y', 0)
+      .attr('width', this.sizes.width)
+      .attr('height', 10)
+      .style('fill', 'url(#legend-traffic)');
 
-  const xAxis = d3.axisBottom()
-    .scale(xScale)
-    .tickValues(xScale.ticks(4).concat(xScale.domain()));
+    legendsvg.append('text')
+      .attr('class', 'legendTitle')
+      .attr('x', 0)
+      .attr('y', -10)
+      .style('text-anchor', 'middle')
+      .text('Scores');
 
-  legendsvg.append('g')
-    .attr('class', 'axis')
-    .attr('transform', 'translate(0,' + (10) + ')')
-    .call(xAxis);
+    const xScale = d3.scaleLinear()
+      .range([-this.sizes.width / 2, this.sizes.width / 2])
+      .domain([0, this.options.upperValueForScale]);
+
+    const xAxis = d3.axisBottom()
+      .scale(xScale)
+      .tickValues(xScale.ticks(4).concat(xScale.domain()));
+
+    legendsvg.append('g')
+      .attr('class', 'axis')
+      .attr('transform', 'translate(0,10)')
+      .call(xAxis);
+  }
 }
