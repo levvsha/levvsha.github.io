@@ -5,11 +5,17 @@ import _throttle from 'lodash/throttle';
 import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
 
+let vizualization = null;
+
 const fetchAndDraw = (userId, useColorByScore) => {
   fetch(getApiEndPoint(userId))
-    .then(response => response.json())
+    .then(function(response) { return response.json(); })
     .then(function(json) {
-      new Vizualization(json.items, userId && useColorByScore)
+      if (vizualization) {
+        vizualization.update(json.items);
+      } else {
+        vizualization = new Vizualization(json.items, userId && useColorByScore);
+      }
     });
 }
 
@@ -18,10 +24,9 @@ const getApiEndPoint = userId => {
 };
 
 const input = document.getElementById('js-input');
-const MAX_RADIUS = 150;
+const MAX_RADIUS = 90;
 
 document.getElementById('js-send-button').addEventListener('click', () => {
-  svg.html('');
   fetchAndDraw(input.value.split('/')[4], true);
 });
 
@@ -102,21 +107,26 @@ class Vizualization {
       .append('g')
       .attr('class', 'nodes')
       .selectAll('.node')
-      .data(this.data)
+      .data(this.data, d => d.tag)
       .enter()
       .append('g')
       .attr('class', 'node')
       .attr('transform', d => `translate(${ d.x },${ d.y })`);
 
-    this.nodes.circles = this.nodes.circleGroup.append('circle')
-      .attr('r', function(d) {
-        return d.radius;
-      })
+    this.nodes.circles = this.nodes.circleGroup
+      .selectAll('circle')
+      .data(d => [d], d => d.tag)
+      .enter()
+      .append('circle')
+      .attr('r', d => d.radius)
       .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
 
     this.nodes.circleGroup
+      .selectAll('text')
+      .data(d => [d], d => d.tag)
+      .enter()
       .append('text')
-      .text(function(d) { return d.tag; })
+      .text(d => d.tag)
       .style('font-size', function(d) {
         const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
 
@@ -127,6 +137,76 @@ class Vizualization {
         return `${ fontSize }px`;
       })
       .attr('dy', '.35em');
+  }
+
+  update(newData) {
+    const areaScaleDomain = d3.extent(newData, d => d.answer_score);
+
+    this.scales.circleAreaScale = d3.scaleLinear()
+      .domain(areaScaleDomain)
+      .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
+
+    const upperValueForScale = _ceil(areaScaleDomain[1], -1);
+
+    this.scales.colorScale = d3.scaleLinear()
+      .domain([0, upperValueForScale / 2, upperValueForScale])
+      .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
+
+    this.data = this.getProcessedData(newData);
+
+    this.nodes.circleGroup = this.nodes.circleGroup.data(this.data, d => d.tag);
+
+    const exitGroups = this.nodes.circleGroup
+      .exit();
+
+    const transition = d3.transition()
+      .duration(800);
+
+    exitGroups
+      .selectAll('circle')
+      .transition(transition)
+      .attr('r', () => 0)
+      .on('end', function() {
+        d3.select(this.parentNode).remove();
+      });
+
+    this.nodes.circleGroup = this.nodes.circleGroup
+      .enter()
+      .append('g')
+      .attr('class', 'node')
+      .merge(this.nodes.circleGroup);
+
+    this.nodes.circles = this.nodes.circleGroup
+      .selectAll('circle')
+      .data(d => [d], d => d.tag)
+      .enter()
+      .append('circle')
+      .attr('r', d => d.radius)
+      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
+
+    this.nodes.circleGroup
+      .selectAll('text')
+      .data(d => [d], d => d.tag)
+      .enter()
+      .append('text')
+      .text(d => d.tag)
+      .style('font-size', function(d) {
+        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
+
+        if (fontSize < 14) {
+          this.remove();
+        }
+
+        return `${ fontSize }px`;
+      })
+      .attr('dy', '.35em');
+
+    this.simulation
+      .nodes(this.data)
+      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1))
+      .restart();
+
+    this.bindEvents();
   }
 
   bindEvents() {
