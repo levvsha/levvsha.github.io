@@ -67,27 +67,14 @@ class Vizualization {
   }
 
   initialDraw(rawData) {
-    const areaScaleDomain = d3.extent(rawData, d => d.answer_score);
 
-    this.scales.circleAreaScale = d3.scaleLinear()
-      .domain(areaScaleDomain)
-      .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
-
-    const upperValueForScale = _ceil(areaScaleDomain[1], -1);
-
-    this.scales.colorScale = d3.scaleLinear()
-      .domain([0, upperValueForScale / 2, upperValueForScale])
-      .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
-
-    this.gradientLegend = new GradientLegend(this.nodes.svg, {
-      upperValueForScale,
-      containerWidth: this.sizes.width,
-      colorScale: this.scales.colorScale
-    });
+    // this.gradientLegend = new GradientLegend(this.nodes.svg, {
+    //   upperValueForScale,
+    //   containerWidth: this.sizes.width,
+    //   colorScale: this.scales.colorScale
+    // });
 
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
-
-    this.data = this.getProcessedData(rawData);
 
     this.simulation = d3.forceSimulation()
       .force('forceX', d3.forceX().strength(.1).x(this.sizes.width * .5))
@@ -95,51 +82,18 @@ class Vizualization {
       .force('center', d3.forceCenter().x(this.sizes.width * .5).y(this.sizes.height * .5))
       .force('charge', d3.forceManyBody().strength(-15));
 
-    this.simulation
-      .nodes(this.data)
-      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1));
-
     this.nodes.svg
       .attr('width', this.sizes.width)
       .attr('height', this.sizes.height);
 
-    this.nodes.circleGroup = this.nodes.svg
+    this.nodes.groupsContainer = this.nodes.svg
       .append('g')
-      .attr('class', 'nodes')
-      .selectAll('.node')
-      .data(this.data, d => d.tag)
-      .enter()
-      .append('g')
-      .attr('class', 'node')
-      .attr('transform', d => `translate(${ d.x },${ d.y })`);
+      .attr('class', 'nodes');
 
-    this.nodes.circles = this.nodes.circleGroup
-      .selectAll('circle')
-      .data(d => [d], d => d.tag)
-      .enter()
-      .append('circle')
-      .attr('r', d => d.radius)
-      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
-
-    this.nodes.circleGroup
-      .selectAll('text')
-      .data(d => [d], d => d.tag)
-      .enter()
-      .append('text')
-      .text(d => d.tag)
-      .style('font-size', function(d) {
-        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
-
-        if (fontSize < 14) {
-          this.remove();
-        }
-
-        return `${ fontSize }px`;
-      })
-      .attr('dy', '.35em');
+    this.update(rawData, true);
   }
 
-  update(newData) {
+  update(newData, isInitial) {
     const areaScaleDomain = d3.extent(newData, d => d.answer_score);
 
     this.scales.circleAreaScale = d3.scaleLinear()
@@ -154,13 +108,19 @@ class Vizualization {
 
     this.data = this.getProcessedData(newData);
 
-    this.nodes.circleGroup = this.nodes.circleGroup.data(this.data, d => d.tag);
+    this.nodes.circleGroup = this.nodes.groupsContainer
+      .selectAll('g.node')
+      .data(this.data, d => d.tag);
 
     const exitGroups = this.nodes.circleGroup
       .exit();
 
     const transition = d3.transition()
-      .duration(800);
+      .duration(750);
+
+    exitGroups
+      .selectAll('text')
+      .remove();
 
     exitGroups
       .selectAll('circle')
@@ -178,20 +138,46 @@ class Vizualization {
 
     this.nodes.circles = this.nodes.circleGroup
       .selectAll('circle')
-      .data(d => [d], d => d.tag)
+      .data(d => [d], d => d.tag);
+
+    this.nodes.circles
+      .transition(transition.on('end', () => console.log('==> sdfsdf')))
+      .attr('r', d => d.radius);
+
+    this.nodes.circles = this.nodes.circles
       .enter()
       .append('circle')
+      .transition(transition)
       .attr('r', d => d.radius)
-      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
+      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */)
 
-    this.nodes.circleGroup
+    this.nodes.circles.merge(this.nodes.circles);
+
+    this.nodes.labels = this.nodes.circleGroup
       .selectAll('text')
-      .data(d => [d], d => d.tag)
+      .data(d => [d], d => d.tag);
+
+    this.nodes.labels
+      .transition(transition)
+      .style('font-size', function(d) {
+        const currentFontSize = parseFloat(window.getComputedStyle(this, null).getPropertyValue('font-size'));
+        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * currentFontSize;
+
+        if (fontSize < 14) {
+          this.remove();
+        }
+
+        return `${ fontSize }px`;
+      });
+
+    this.nodes.labels = this.nodes.labels
       .enter()
       .append('text')
       .text(d => d.tag)
+      .transition(transition)
       .style('font-size', function(d) {
-        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * 16;
+        const currentFontSize = parseFloat(window.getComputedStyle(this, null).getPropertyValue('font-size'));
+        const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * currentFontSize;
 
         if (fontSize < 14) {
           this.remove();
@@ -201,12 +187,13 @@ class Vizualization {
       })
       .attr('dy', '.35em');
 
+    this.nodes.labels.merge(this.nodes.labels);
+
     this.simulation
       .nodes(this.data)
-      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1))
-      .restart();
+      .force('collide', d3.forceCollide().strength(.5).radius(d => d.radius + 2.5).iterations(1));
 
-    this.bindEvents();
+    this.simulation.alphaTarget(.03).restart();
   }
 
   bindEvents() {
@@ -275,7 +262,6 @@ class Vizualization {
     return rawData
       .map(item => ({ tag: item.tag_name, score: item.answer_score }))
       .map(d => {
-        d.size =  d.score;
         d.radius = Math.sqrt(this.scales.circleAreaScale(d.score) / Math.PI);
 
         return d;
