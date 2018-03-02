@@ -59,6 +59,7 @@ class Vizualization {
     };
 
     this.isDragged = false;
+    this.gradientLegend = null;
 
     this.initialDraw(rawData);
     this.bindEvents() ;
@@ -67,13 +68,6 @@ class Vizualization {
   }
 
   initialDraw(rawData) {
-
-    // this.gradientLegend = new GradientLegend(this.nodes.svg, {
-    //   upperValueForScale,
-    //   containerWidth: this.sizes.width,
-    //   colorScale: this.scales.colorScale
-    // });
-
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
 
     this.simulation = d3.forceSimulation()
@@ -100,11 +94,21 @@ class Vizualization {
       .domain(areaScaleDomain)
       .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
 
-    const upperValueForScale = _ceil(areaScaleDomain[1], -1);
+    const upperValueForScale = _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 2));
 
     this.scales.colorScale = d3.scaleLinear()
       .domain([0, upperValueForScale / 2, upperValueForScale])
       .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
+
+    if (isInitial) {
+      this.gradientLegend = new GradientLegend(this.nodes.svg, {
+        upperValueForScale,
+        containerWidth: this.sizes.width,
+        colorScale: this.scales.colorScale
+      });
+    } else {
+      this.gradientLegend.update(upperValueForScale);
+    }
 
     this.data = this.getProcessedData(newData);
 
@@ -136,13 +140,16 @@ class Vizualization {
       .attr('class', 'node')
       .merge(this.nodes.circleGroup);
 
+    this.bindCirclesGroupEvents(this.nodes.circleGroup);
+
     this.nodes.circles = this.nodes.circleGroup
       .selectAll('circle')
       .data(d => [d], d => d.tag);
 
     this.nodes.circles
       .transition(transition.on('end', () => console.log('==> sdfsdf')))
-      .attr('r', d => d.radius);
+      .attr('r', d => d.radius)
+      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
 
     this.nodes.circles = this.nodes.circles
       .enter()
@@ -196,16 +203,10 @@ class Vizualization {
     this.simulation.alphaTarget(.03).restart();
   }
 
-  bindEvents() {
-    const component = this;
-
-    this.simulation
-      .on('tick', () => {
-        this.nodes.circleGroup.attr('transform', d => `translate(${ d.x },${ d.y })`);
-      });
-
-    this.nodes.circleGroup
+  bindCirclesGroupEvents(selection) {
+    selection
       .on('mouseenter', (d) => {
+        console.log('==> hej hej hej');
         if (!this.isDragged) {
           this.nodes.tooltip.classed('show', true)
             .text(`${ d.tag }: ${ d.score }`);
@@ -223,6 +224,15 @@ class Vizualization {
         .on('drag', d => this.dragged(d))
         .on('end', d => this.dragended(d))
       );
+  }
+
+  bindEvents() {
+    const component = this;
+
+    this.simulation
+      .on('tick', () => {
+        this.nodes.circleGroup.attr('transform', d => `translate(${ d.x },${ d.y })`);
+      });
 
     this.nodes.tagLinks
       .on('mouseenter', function() {
@@ -329,6 +339,12 @@ class GradientLegend {
       colorScale: options.colorScale
     };
 
+    this.nodes = {
+      svg: svg,
+      root: null,
+      axis: null
+    };
+
     this.drawLegend();
   }
 
@@ -342,7 +358,7 @@ class GradientLegend {
       countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
     }
 
-    this.rootNode.append('defs')
+    this.nodes.svg.append('defs')
       .append('linearGradient')
       .attr('id', 'legend-traffic')
       .attr('x1', '0%').attr('y1', '0%')
@@ -353,11 +369,11 @@ class GradientLegend {
       .attr('offset', (d,i) => this.scales.legendScale(countPoint[i]) / this.sizes.width)
       .attr('stop-color', (d,i) => this.scales.colorScale(countPoint[i]));
 
-    const legendsvg = svg.append('g')
+    this.nodes.root = this.nodes.svg.append('g')
       .attr('class', 'legendWrapper')
       .attr('transform', `translate(${ this.options.containerWidth / 2 },80)`);
 
-    legendsvg.append('rect')
+    this.nodes.root.append('rect')
       .attr('class', 'legendRect')
       .attr('x', -this.sizes.width / 2)
       .attr('y', 0)
@@ -365,24 +381,33 @@ class GradientLegend {
       .attr('height', 10)
       .style('fill', 'url(#legend-traffic)');
 
-    legendsvg.append('text')
+    this.nodes.root.append('text')
       .attr('class', 'legendTitle')
       .attr('x', 0)
       .attr('y', -10)
       .style('text-anchor', 'middle')
       .text('Scores');
 
+    this.nodes.axis = this.nodes.root.append('g')
+      .attr('class', 'axis')
+      .attr('transform', 'translate(0,10)');
+
+    this.update(this.options.upperValueForScale);
+  }
+
+  update(maxDomainValue) {
     const xScale = d3.scaleLinear()
       .range([-this.sizes.width / 2, this.sizes.width / 2])
-      .domain([0, this.options.upperValueForScale]);
+      .domain([0, maxDomainValue]);
 
     const xAxis = d3.axisBottom()
       .scale(xScale)
+      .tickFormat(d3.format('.0f'))
       .tickValues(xScale.ticks(4).concat(xScale.domain()));
 
-    legendsvg.append('g')
-      .attr('class', 'axis')
-      .attr('transform', 'translate(0,10)')
-      .call(xAxis);
+    this.nodes.axis
+      .transition()
+      .duration(750)
+      .call(xAxis)
   }
 }
