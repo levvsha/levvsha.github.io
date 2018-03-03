@@ -61,13 +61,16 @@ class Vizualization {
     this.isDragged = false;
     this.gradientLegend = null;
 
-    this.initialDraw(rawData);
+    this.circlesUpdateTransition = d3.transition().duration(750);
+    this.circlesPulsingTransition = d3.transition().duration(400);
+
+    this.drawSceleton(rawData);
     this.bindEvents() ;
 
     this.moveTooltip = _throttle(this.moveTooltip, 300);
   }
 
-  initialDraw(rawData) {
+  drawSceleton(rawData) {
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
 
     this.simulation = d3.forceSimulation()
@@ -119,16 +122,13 @@ class Vizualization {
     const exitGroups = this.nodes.circleGroup
       .exit();
 
-    const transition = d3.transition()
-      .duration(750);
-
     exitGroups
       .selectAll('text')
       .remove();
 
     exitGroups
       .selectAll('circle')
-      .transition(transition)
+      .transition(this.circlesUpdateTransition)
       .attr('r', () => 0)
       .on('end', function() {
         d3.select(this.parentNode).remove();
@@ -147,14 +147,14 @@ class Vizualization {
       .data(d => [d], d => d.tag);
 
     this.nodes.circles
-      .transition(transition.on('end', () => console.log('==> sdfsdf')))
+      .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
       .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
 
     this.nodes.circles = this.nodes.circles
       .enter()
       .append('circle')
-      .transition(transition)
+      .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
       .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */)
 
@@ -165,7 +165,7 @@ class Vizualization {
       .data(d => [d], d => d.tag);
 
     this.nodes.labels
-      .transition(transition)
+      .transition(this.circlesUpdateTransition)
       .style('font-size', function(d) {
         const currentFontSize = parseFloat(window.getComputedStyle(this, null).getPropertyValue('font-size'));
         const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * currentFontSize;
@@ -181,7 +181,7 @@ class Vizualization {
       .enter()
       .append('text')
       .text(d => d.tag)
-      .transition(transition)
+      .transition(this.circlesUpdateTransition)
       .style('font-size', function(d) {
         const currentFontSize = parseFloat(window.getComputedStyle(this, null).getPropertyValue('font-size'));
         const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * currentFontSize;
@@ -206,7 +206,6 @@ class Vizualization {
   bindCirclesGroupEvents(selection) {
     selection
       .on('mouseenter', (d) => {
-        console.log('==> hej hej hej');
         if (!this.isDragged) {
           this.nodes.tooltip.classed('show', true)
             .text(`${ d.tag }: ${ d.score }`);
@@ -244,8 +243,12 @@ class Vizualization {
         const tag = this.getAttribute('data-tag');
 
         component.nodes.circles.filter(d => groups[d.tag] === tag)
-          .transition()
-          .duration(d => d.radius)
+          .each(function() {
+            d3.select(this)
+              .transition()
+              .duration(400)
+              .attr('r', d => d.radius);
+          });
       });
   }
 
@@ -324,7 +327,6 @@ class Vizualization {
 class GradientLegend {
   constructor(node, options) {
     this.options = options;
-    this.rootNode = node;
 
     this.sizes = {
       width: 600
@@ -398,12 +400,12 @@ class GradientLegend {
   update(maxDomainValue) {
     const xScale = d3.scaleLinear()
       .range([-this.sizes.width / 2, this.sizes.width / 2])
-      .domain([0, maxDomainValue]);
+      .domain([0, maxDomainValue])
+      .nice();
 
     const xAxis = d3.axisBottom()
       .scale(xScale)
-      .tickFormat(d3.format('.0f'))
-      .tickValues(xScale.ticks(4).concat(xScale.domain()));
+      .tickFormat(d3.format('.0f'));
 
     this.nodes.axis
       .transition()
