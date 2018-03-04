@@ -7,14 +7,14 @@ import groups from '../groupsMapping.json';
 
 let vizualization = null;
 
-const fetchAndDraw = (userId, useColorByScore) => {
+const fetchAndDraw = (userId) => {
   fetch(getApiEndPoint(userId))
     .then(function(response) { return response.json(); })
     .then(function(json) {
       if (vizualization) {
-        vizualization.update(json.items);
+        vizualization.update(json.items, false, true);
       } else {
-        vizualization = new Vizualization(json.items, userId && useColorByScore);
+        vizualization = new Vizualization(json.items);
       }
     });
 }
@@ -36,7 +36,7 @@ const svg = d3.select('body')
   .append('svg');
 
 class Vizualization {
-  constructor(rawData, useColorByScore) {
+  constructor(rawData) {
     this.sizes = {
       width: window.innerWidth,
       height: window.innerHeight,
@@ -62,7 +62,6 @@ class Vizualization {
     this.gradientLegend = null;
 
     this.circlesUpdateTransition = d3.transition().duration(750);
-    this.circlesPulsingTransition = d3.transition().duration(400);
 
     this.drawSceleton(rawData);
     this.bindEvents() ;
@@ -90,7 +89,7 @@ class Vizualization {
     this.update(rawData, true);
   }
 
-  update(newData, isInitial) {
+  update(newData, isInitial, useColorByScore) {
     const areaScaleDomain = d3.extent(newData, d => d.answer_score);
 
     this.scales.circleAreaScale = d3.scaleLinear()
@@ -149,14 +148,14 @@ class Vizualization {
     this.nodes.circles
       .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
-      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */);
+      .attr('fill', d => (useColorByScore ? this.getColorByScore(d) : this.getColorByTag(d)));
 
     this.nodes.circles = this.nodes.circles
       .enter()
       .append('circle')
       .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
-      .attr('fill', /* useColorByScore ? */ d => this.getColorByScore(d) /* : getColorByTag */)
+      .attr('fill', d => (useColorByScore ? this.getColorByScore(d) : this.getColorByTag(d)));
 
     this.nodes.circles.merge(this.nodes.circles);
 
@@ -237,24 +236,22 @@ class Vizualization {
       .on('mouseenter', function() {
         const tag = this.getAttribute('data-tag');
 
-        component.animateCircles(tag);
+        component.animateCircles(tag, true);
       })
       .on('mouseleave', function() {
         const tag = this.getAttribute('data-tag');
 
-        component.nodes.circles.filter(d => groups[d.tag] === tag)
-          .each(function() {
-            d3.select(this)
-              .transition()
-              .duration(400)
-              .attr('r', d => d.radius);
-          });
+        component.animateCircles(tag, false);
       });
   }
 
-  animateCircles(tag) {
-    const component = this;
-
+  animateCircles(tag, isIncreaseIteration) {
+    this.nodes.circles.filter(d => groups[d.tag] === tag)
+      .transition(d3.transition().duration(400).on('end', () => {
+        this.animateCircles(tag, !isIncreaseIteration);
+      }))
+      .attr('r', d => d.radius - (isIncreaseIteration ? 3 : 0));
+/*
     this.nodes.circles.filter(d => groups[d.tag] === tag)
       .each(function() {
         d3.select(this)
@@ -269,6 +266,7 @@ class Vizualization {
               .on('end', () => component.animateCircles(tag))
           })
       })
+      */
   }
 
   getProcessedData(rawData) {
