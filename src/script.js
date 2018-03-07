@@ -62,6 +62,7 @@ class Vizualization {
     this.gradientLegend = null;
 
     this.circlesUpdateTransition = d3.transition().duration(750);
+    this.circlesPulsingTransition = null;
 
     this.drawSceleton(rawData);
     this.bindEvents();
@@ -242,13 +243,24 @@ class Vizualization {
       .on('mouseleave', function() {
         const tag = this.getAttribute('data-tag');
 
-        component.animateCircles(tag, false);
+        component.animateCircles(tag, false, true)
       });
   }
 
-  animateCircles(tag, isIncreaseIteration) {
+  animateCircles(tag, isIncreaseIteration, isStop) {
+    this.circlesPulsingTransition = d3.transition()
+      .duration(400)
+      .on('end', () => {
+        if (isStop && !isIncreaseIteration) {
+          return;
+        }
+        console.log('isStop ==>', isStop);
+        this.animateCircles(tag, !isIncreaseIteration);
+      });
+
     this.nodes.circles
       .filter(d => groups[d.tag] === tag)
+      .transition(this.circlesPulsingTransition)
       .attr('r', d => d.radius - (isIncreaseIteration ? 3 : 0));
   }
 
