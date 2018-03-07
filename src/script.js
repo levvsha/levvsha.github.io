@@ -243,7 +243,7 @@ class Vizualization {
       .on('mouseleave', function() {
         const tag = this.getAttribute('data-tag');
 
-        component.animateCircles(tag, false, true)
+        component.animateCircles(tag, false, true);
       });
   }
 
@@ -254,7 +254,7 @@ class Vizualization {
         if (isStop && !isIncreaseIteration) {
           return;
         }
-        console.log('isStop ==>', isStop);
+
         this.animateCircles(tag, !isIncreaseIteration);
       });
 
