@@ -64,7 +64,7 @@ class Vizualization {
     this.circlesUpdateTransition = d3.transition().duration(750);
 
     this.drawSceleton(rawData);
-    this.bindEvents() ;
+    this.bindEvents();
 
     this.moveTooltip = _throttle(this.moveTooltip, 300);
   }
@@ -153,11 +153,12 @@ class Vizualization {
     this.nodes.circles = this.nodes.circles
       .enter()
       .append('circle')
+      .merge(this.nodes.circles);
+
+    this.nodes.circles
       .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
       .attr('fill', d => (useColorByScore ? this.getColorByScore(d) : this.getColorByTag(d)));
-
-    this.nodes.circles.merge(this.nodes.circles);
 
     this.nodes.labels = this.nodes.circleGroup
       .selectAll('text')
@@ -180,7 +181,9 @@ class Vizualization {
       .enter()
       .append('text')
       .text(d => d.tag)
-      .transition(this.circlesUpdateTransition)
+      .merge(this.nodes.labels);
+
+    this.nodes.labels.transition(this.circlesUpdateTransition)
       .style('font-size', function(d) {
         const currentFontSize = parseFloat(window.getComputedStyle(this, null).getPropertyValue('font-size'));
         const fontSize = Math.min(2 * d.radius, (2 * d.radius - 8)) / this.getComputedTextLength() * currentFontSize;
@@ -192,8 +195,6 @@ class Vizualization {
         return `${ fontSize }px`;
       })
       .attr('dy', '.35em');
-
-    this.nodes.labels.merge(this.nodes.labels);
 
     this.simulation
       .nodes(this.data)
@@ -246,27 +247,9 @@ class Vizualization {
   }
 
   animateCircles(tag, isIncreaseIteration) {
-    this.nodes.circles.filter(d => groups[d.tag] === tag)
-      .transition(d3.transition().duration(400).on('end', () => {
-        this.animateCircles(tag, !isIncreaseIteration);
-      }))
+    this.nodes.circles
+      .filter(d => groups[d.tag] === tag)
       .attr('r', d => d.radius - (isIncreaseIteration ? 3 : 0));
-/*
-    this.nodes.circles.filter(d => groups[d.tag] === tag)
-      .each(function() {
-        d3.select(this)
-          .transition()
-          .duration(400)
-          .attr('r', d => d.radius - 3)
-          .on('end', function() {
-            d3.select(this)
-              .transition()
-              .duration(400)
-              .attr('r', d => d.radius)
-              .on('end', () => component.animateCircles(tag))
-          })
-      })
-      */
   }
 
   getProcessedData(rawData) {
@@ -345,6 +328,8 @@ class GradientLegend {
       axis: null
     };
 
+    this.axisTransition = d3.transition().duration(750);
+
     this.drawLegend();
   }
 
@@ -406,8 +391,7 @@ class GradientLegend {
       .tickFormat(d3.format('.0f'));
 
     this.nodes.axis
-      .transition()
-      .duration(750)
+      .transition(this.axisTransition)
       .call(xAxis)
   }
 }
