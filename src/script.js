@@ -76,6 +76,9 @@ class Vizualization {
   }
 
   drawSceleton(rawData) {
+    this.nodes.tooltip
+      .style('display', 'block');
+
     this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
 
     this.simulation = d3.forceSimulation()
@@ -221,8 +224,9 @@ class Vizualization {
         this.nodes.tooltip.classed('show', false);
       })
       .on('mousemove', () => {
-        const { clientX, clientY } = d3.event;
-        this.moveTooltip(clientX, clientY);
+        const { pageX, pageY } = d3.event;
+
+        this.moveTooltip(pageX, pageY);
       })
       .call(d3.drag()
         .on('start', d => this.dragstarted(d))
