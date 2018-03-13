@@ -7,7 +7,9 @@ import groups from '../groupsMapping.json';
 
 let vizualization = null;
 
-const fetchAndDraw = (userId) => {
+const fetchAndDraw = (input) => {
+  const userId = parseInt(input, 10) || (input || '').split('/')[4];
+
   fetch(getApiEndPoint(userId))
     .then(function(response) { return response.json(); })
     .then(function(json) {
@@ -27,13 +29,16 @@ const input = document.getElementById('js-input');
 const MAX_RADIUS = 90;
 
 document.getElementById('js-send-button').addEventListener('click', () => {
-  fetchAndDraw(input.value.split('/')[4], true);
+  fetchAndDraw(input.value, true);
+});
+
+d3.selectAll('.js-username').on('click', function() {
+  fetchAndDraw(this.getAttribute('data-user-id'));
 });
 
 export default () => fetchAndDraw();
 
-const svg = d3.select('body')
-  .append('svg');
+const svg = d3.select('body svg');
 
 class Vizualization {
   constructor(rawData) {
@@ -62,6 +67,7 @@ class Vizualization {
     this.gradientLegend = null;
 
     this.circlesUpdateTransition = d3.transition().duration(750);
+    this.circlesPulsingTransition = null;
 
     this.drawSceleton(rawData);
     this.bindEvents();
@@ -242,13 +248,24 @@ class Vizualization {
       .on('mouseleave', function() {
         const tag = this.getAttribute('data-tag');
 
-        component.animateCircles(tag, false);
+        component.animateCircles(tag, false, true);
       });
   }
 
-  animateCircles(tag, isIncreaseIteration) {
+  animateCircles(tag, isIncreaseIteration, isStop) {
+    this.circlesPulsingTransition = d3.transition()
+      .duration(400)
+      .on('end', () => {
+        if (isStop && !isIncreaseIteration) {
+          return;
+        }
+
+        this.animateCircles(tag, !isIncreaseIteration);
+      });
+
     this.nodes.circles
       .filter(d => groups[d.tag] === tag)
+      .transition(this.circlesPulsingTransition)
       .attr('r', d => d.radius - (isIncreaseIteration ? 3 : 0));
   }
 
@@ -323,7 +340,7 @@ class GradientLegend {
     };
 
     this.nodes = {
-      svg: svg,
+      svg: node,
       root: null,
       axis: null
     };
