@@ -5,7 +5,18 @@ import _throttle from 'lodash/throttle';
 import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
 
-let vizualization = null;
+const colors = [
+  '#aec7e8',
+  '#ffbb78',
+  '#98df8a',
+  '#ff9896',
+  '#c5b0d5',
+  '#c49c94',
+  '#f7b6d2',
+  '#c7c7c7',
+  '#dbdb8d',
+  '#9edae5'
+]
 
 const fetchAndDraw = (input) => {
   const userId = parseInt(input, 10) || (input || '').split('/')[4];
@@ -13,11 +24,7 @@ const fetchAndDraw = (input) => {
   fetch(getApiEndPoint(userId))
     .then(function(response) { return response.json(); })
     .then(function(json) {
-      if (vizualization) {
-        vizualization.update(json.items, false, true);
-      } else {
-        vizualization = new Vizualization(json.items);
-      }
+      new Vizualization(json.items);
     });
 }
 
@@ -25,16 +32,7 @@ const getApiEndPoint = userId => {
   return `https://api.stackexchange.com/2.2/users/${ userId || 5806646 }/top-answer-tags?key=U4DMV*8nvpm3EOpvf69Rxw((&site=stackoverflow&pagesize=100&filter=default`
 };
 
-const input = document.getElementById('js-input');
 const MAX_RADIUS = 90;
-
-document.getElementById('js-send-button').addEventListener('click', () => {
-  fetchAndDraw(input.value, true);
-});
-
-d3.selectAll('.js-username').on('click', function() {
-  fetchAndDraw(this.getAttribute('data-user-id'));
-});
 
 export default () => fetchAndDraw();
 
@@ -43,8 +41,8 @@ const svg = d3.select('body svg');
 class Vizualization {
   constructor(rawData) {
     this.sizes = {
-      width: window.innerWidth,
-      height: window.innerHeight,
+      width: 1100,
+      height: window.innerHeight - 50,
       maxRadius: MAX_RADIUS,
       maxArea: Math.pow(MAX_RADIUS , 2) * Math.PI
     };
@@ -59,7 +57,6 @@ class Vizualization {
 
     this.scales = {
       circleAreaScale: null,
-      colorScale: null,
       colorScheme: null
     };
 
@@ -79,12 +76,12 @@ class Vizualization {
     this.nodes.tooltip
       .style('display', 'block');
 
-    this.scales.colorScheme = d3.scaleOrdinal(d3.schemeCategory20);
+    this.scales.colorScheme = d3.scaleOrdinal(colors);
 
     this.simulation = d3.forceSimulation()
-      .force('forceX', d3.forceX().strength(.1).x(this.sizes.width * .5))
-      .force('forceY', d3.forceY().strength(.1).y(this.sizes.height * .5))
-      .force('center', d3.forceCenter().x(this.sizes.width * .5).y(this.sizes.height * .5))
+      .force('forceX', d3.forceX().strength(.1).x(this.sizes.width * .635))
+      .force('forceY', d3.forceY().strength(.1).y(this.sizes.height * .48))
+      .force('center', d3.forceCenter().x(this.sizes.width * .635).y(this.sizes.height * .48))
       .force('charge', d3.forceManyBody().strength(-15));
 
     this.nodes.svg
@@ -95,10 +92,10 @@ class Vizualization {
       .append('g')
       .attr('class', 'nodes');
 
-    this.update(rawData, true);
+    this.update(rawData);
   }
 
-  update(newData, isInitial, useColorByScore) {
+  update(newData) {
     const areaScaleDomain = d3.extent(newData, d => d.answer_score);
 
     this.scales.circleAreaScale = d3.scaleLinear()
@@ -106,20 +103,6 @@ class Vizualization {
       .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
 
     const upperValueForScale = _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 2));
-
-    this.scales.colorScale = d3.scaleLinear()
-      .domain([0, upperValueForScale / 2, upperValueForScale])
-      .range(['rgb(34, 131, 187)', 'rgb(253, 255, 140)', 'rgb(216, 31, 28)']);
-
-    if (isInitial) {
-      this.gradientLegend = new GradientLegend(this.nodes.svg, {
-        upperValueForScale,
-        containerWidth: this.sizes.width,
-        colorScale: this.scales.colorScale
-      });
-    } else {
-      this.gradientLegend.update(upperValueForScale);
-    }
 
     this.data = this.getProcessedData(newData);
 
@@ -157,7 +140,7 @@ class Vizualization {
     this.nodes.circles
       .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
-      .attr('fill', d => (useColorByScore ? this.getColorByScore(d) : this.getColorByTag(d)));
+      .attr('fill', d => this.getColorByTag(d));
 
     this.nodes.circles = this.nodes.circles
       .enter()
@@ -167,7 +150,7 @@ class Vizualization {
     this.nodes.circles
       .transition(this.circlesUpdateTransition)
       .attr('r', d => d.radius)
-      .attr('fill', d => (useColorByScore ? this.getColorByScore(d) : this.getColorByTag(d)));
+      .attr('fill', d => this.getColorByTag(d));
 
     this.nodes.labels = this.nodes.circleGroup
       .selectAll('text')
@@ -283,11 +266,11 @@ class Vizualization {
       });
   }
 
-  getColorByScore(d) {
-    return this.scales.colorScale(d.score);
-  }
-
   getColorByTag(d) {
+    if (!groups[d.tag]) {
+      console.log('d.tag ==>', d.tag);
+    }
+
     return this.scales.colorScheme(groups[d.tag] || 'other')
   }
 
@@ -323,96 +306,5 @@ class Vizualization {
 
     d.fx = null;
     d.fy = null;
-  }
-}
-
-class GradientLegend {
-  constructor(node, options) {
-    this.options = options;
-
-    this.sizes = {
-      width: 600
-    };
-
-    const legendScale = d3.scaleLinear()
-      .domain([0, options.upperValueForScale])
-      .range([0, this.sizes.width]);
-
-    this.scales = {
-      legendScale,
-      colorScale: options.colorScale
-    };
-
-    this.nodes = {
-      svg: node,
-      root: null,
-      axis: null
-    };
-
-    this.axisTransition = d3.transition().duration(750);
-
-    this.drawLegend();
-  }
-
-  drawLegend() {
-    const numStops = 10;
-    const countRange = this.scales.legendScale.domain();
-    countRange[2] = countRange[1] - countRange[0];
-    const countPoint = [];
-
-    for(var i = 0; i < numStops; i++) {
-      countPoint.push(i * countRange[2] / (numStops - 1) + countRange[0]);
-    }
-
-    this.nodes.svg.append('defs')
-      .append('linearGradient')
-      .attr('id', 'legend-traffic')
-      .attr('x1', '0%').attr('y1', '0%')
-      .attr('x2', '100%').attr('y2', '0%')
-      .selectAll('stop')
-      .data(d3.range(10))
-      .enter().append('stop')
-      .attr('offset', (d,i) => this.scales.legendScale(countPoint[i]) / this.sizes.width)
-      .attr('stop-color', (d,i) => this.scales.colorScale(countPoint[i]));
-
-    this.nodes.root = this.nodes.svg.append('g')
-      .attr('class', 'legendWrapper')
-      .attr('transform', `translate(${ this.options.containerWidth / 2 },80)`);
-
-    this.nodes.root.append('rect')
-      .attr('class', 'legendRect')
-      .attr('x', -this.sizes.width / 2)
-      .attr('y', 0)
-      .attr('width', this.sizes.width)
-      .attr('height', 10)
-      .style('fill', 'url(#legend-traffic)');
-
-    this.nodes.root.append('text')
-      .attr('class', 'legendTitle')
-      .attr('x', 0)
-      .attr('y', -10)
-      .style('text-anchor', 'middle')
-      .text('Scores');
-
-    this.nodes.axis = this.nodes.root.append('g')
-      .attr('class', 'axis')
-      .attr('transform', 'translate(0,10)');
-
-    this.update(this.options.upperValueForScale);
-  }
-
-  update(maxDomainValue) {
-    const xScale = d3.scaleLinear()
-      .range([-this.sizes.width / 2, this.sizes.width / 2])
-      .domain([0, maxDomainValue])
-      .nice();
-
-    const xAxis = d3.axisBottom()
-      .scale(xScale)
-      .tickFormat(d3.format('.0f'));
-
-    this.nodes.axis
-      .transition(this.axisTransition)
-      .call(xAxis)
   }
 }
