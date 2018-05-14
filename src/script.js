@@ -2,7 +2,6 @@ import './styles.styl';
 
 import * as d3 from 'd3';
 import _throttle from 'lodash/throttle';
-import _ceil from 'lodash/ceil';
 import groups from '../groupsMapping.json';
 
 const colors = [
@@ -16,7 +15,21 @@ const colors = [
   '#c7c7c7',
   '#dbdb8d',
   '#9edae5'
-]
+];
+
+[].forEach.call(document.getElementsByClassName('js-social'), node => {
+  node.addEventListener('mouseenter', () => {
+    const linkName = node.getAttribute('data-link');
+
+    document.getElementById(`js-${ linkName }-link`).setAttribute('class', `link ${ linkName }`);
+  });
+
+  node.addEventListener('mouseleave', () => {
+    const linkName = node.getAttribute('data-link');
+
+    document.getElementById(`js-${ linkName }-link`).setAttribute('class', 'link');
+  });
+});
 
 const fetchAndDraw = (input) => {
   const userId = parseInt(input, 10) || (input || '').split('/')[4];
@@ -42,7 +55,7 @@ class Vizualization {
   constructor(rawData) {
     this.sizes = {
       width: 1100,
-      height: window.innerHeight - 50,
+      height: 540,
       maxRadius: MAX_RADIUS,
       maxArea: Math.pow(MAX_RADIUS , 2) * Math.PI
     };
@@ -101,8 +114,6 @@ class Vizualization {
     this.scales.circleAreaScale = d3.scaleLinear()
       .domain(areaScaleDomain)
       .range([this.sizes.maxArea / (areaScaleDomain[1] / areaScaleDomain[0]), this.sizes.maxArea]);
-
-    const upperValueForScale = _ceil(areaScaleDomain[1], -(areaScaleDomain[1].toString().length - 2));
 
     this.data = this.getProcessedData(newData);
 
