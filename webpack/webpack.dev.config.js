@@ -2,6 +2,7 @@ var path = require('path');
 var webpack = require('webpack');
 
 module.exports = {
+  mode: 'development',
   context: path.resolve(__dirname, '..'),
   devtool: 'cheap-inline-module-source-map',
   entry: {
@@ -40,9 +41,6 @@ module.exports = {
               localIdentName: '[local]',
               sourceMap: true
             }
-          },
-          {
-            loader: 'autoprefixer-loader'
           },
           {
             loader: 'stylus-loader',
@@ -115,12 +113,14 @@ module.exports = {
     new webpack.DefinePlugin({
       'IS_PRODUCTION': false
     }),
-    new webpack.optimize.CommonsChunkPlugin({
-      async: true,
-      children: true
-    }),
-    new webpack.HotModuleReplacementPlugin()
+    new webpack.HotModuleReplacementPlugin(),
   ],
+  optimization: {
+    namedModules: true, // NamedModulesPlugin()
+    splitChunks: { // CommonsChunkPlugin()
+      chunks: 'async'
+    }
+  },
   target: 'web', // Make web variables accessible to webpack, e.g. window
   stats: true, // Don't show stats in the console
 };
