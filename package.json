@@ -13,7 +13,7 @@
   },
   "betterScripts": {
     "build-prod": {
-      "command": "webpack --verbose --progress -p --config ./webpack/webpack.prod.config.js",
+      "command": "rm -rf docs && webpack --verbose --progress -p --config ./webpack/webpack.prod.config.js",
       "env": {
         "NODE_ENV": "production"
       }
@@ -53,12 +53,12 @@
     "eslint-plugin-jsx-a11y": "6.0.3",
     "eslint-plugin-react": "^7.5.1",
     "express": "^4.16.2",
-    "extract-text-webpack-plugin": "^4.0.0-beta.0",
+    "extract-text-webpack-plugin": "next",
     "file-loader": "^0.11.1",
     "ghooks": "^2.0.0",
     "history": "^4.6.1",
     "html-minifier-cli": "^0.1.0",
-    "html-webpack-plugin": "^3.2.0",
+    "html-webpack-plugin": "next",
     "lodash": "^4.13.1",
     "material-ui": "^1.0.0-beta.30",
     "prop-types": "^15.5.8",

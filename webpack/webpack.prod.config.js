@@ -2,9 +2,7 @@ var path = require('path');
 var webpack = require('webpack');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
-// var BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
-var rootPath = path.resolve(__dirname , '..');
 var outPath = path.resolve(__dirname, '../docs');
 
 module.exports = {
@@ -17,7 +15,7 @@ module.exports = {
   output: {
     path: outPath,
     filename: '[name].[hash].js',
-    publicPath: '/',
+    publicPath: '',
   },
   module: {
     rules: [
