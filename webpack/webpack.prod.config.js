@@ -1,36 +1,28 @@
 var path = require('path');
 var webpack = require('webpack');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
-var CopyWebpackPlugin = require('copy-webpack-plugin');
-var StatsPlugin = require('stats-webpack-plugin');
+var HtmlWebpackPlugin = require('html-webpack-plugin');
 // var BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
-const PARAM_PUBLIC = '/.tmp';
-
-const PUBLIC_PATH = path.join(__dirname, PARAM_PUBLIC);
-const SOURCE_PATH = path.resolve(__dirname);
-const NODE_ENV = require('./envConfig').NODE_ENV;
-const PORT = require('./envConfig').PORT;
-const LOCAL_IP = require('./envConfig').LOCAL_IP;
+var rootPath = path.resolve(__dirname , '..');
+var outPath = path.resolve(__dirname, '../docs');
 
 module.exports = {
   mode: 'production',
-  context: SOURCE_PATH,
-  devtool: 'hidden-source-map',
-  entry: {
-    app: [
-      './src/app.js'
-    ]
-  },
+  context: path.resolve(__dirname , '..'),
+  devtool: 'source-map',
+  entry: [
+    './src/app.js'
+  ],
   output: {
-    path: PUBLIC_PATH,
-    publicPath: 'http://' + LOCAL_IP + ':' + PORT + '/',
-    filename: 'js/[name].[hash].js'
+    path: outPath,
+    filename: '[name].[hash].js',
+    publicPath: '/',
   },
   module: {
     rules: [
       {
-        test: /\.js?$/,
+        test: /\.jsx?$/,
         exclude: /node_modules/,
         use: [
           {
@@ -46,72 +38,20 @@ module.exports = {
             {
               loader: 'css-loader',
               options: {
-                minimize: true,
+                importLoaders: 1,
+                localIdentName: '[local]',
                 sourceMap: true
               }
             },
             {
               loader: 'stylus-loader',
               options: {
-                sourceMap: true,
-                import: [path.resolve(__dirname, './src/commonStyles/commonStyles.styl')]
+                sourceMap: true
               }
             }
           ]
         })
-      },
-      {
-        test: /\.woff$/,
-        loader: 'url-loader',
-        options: {
-          limit: 10000,
-          name: '/[path][name].[ext]',
-          mimetype: 'application/font-woff'
-        }
-      },
-      {
-        test: /\.woff2$/,
-        loader: 'url-loader',
-        options: {
-          limit: 10000,
-          name: '/[path][name].[ext]',
-          mimetype: 'application/font-woff'
-        }
-      },
-      {
-        test: /\.ttf$/,
-        loader: 'url-loader',
-        options: {
-          limit: 10000,
-          name: '/[path][name].[ext]',
-          mimetype: 'application/octet-stream'
-        }
-      },
-      {
-        test: /\.eot$/,
-        loader: 'file-loader',
-        options: {
-          name: '/[path][name].[ext]'
-        }
-      },
-      {
-        test: /\.(jpe?g|gif|png|)$/,
-        loader: 'file-loader',
-        options: {
-          name: '/[path][name].[ext]'
-        }
-      },
-      {
-        test:  /\.svg$/,
-        use: [
-          {
-            loader: 'babel-loader'
-          },
-          {
-            loader: 'svg-react-loader',
-          }
-        ]
-      },
+      }
     ]
   },
   resolve: {
@@ -122,53 +62,31 @@ module.exports = {
     extensions: ['.webpack-loader.js', '.web-loader.js', '.loader.js', '.js', '.jsx']
   },
   plugins: [
-    new ExtractTextPlugin({
-      filename: '/css/[name].[hash].css',
-      allChunks: true
+    new HtmlWebpackPlugin({
+      filename: '../docs/index.html',
+      template: './webpack/index.tpl.ejs',
     }),
-    new CopyWebpackPlugin([
-      { from: 'images', to: 'images' }
-    ]),
+    new ExtractTextPlugin({
+      filename: '[name].[hash].css'
+    }),
     new webpack.DefinePlugin({
       'process.env': {
-        NODE_ENV: JSON.stringify(NODE_ENV)
+        NODE_ENV: JSON.stringify('production')
       },
-      'global.IS_BROWSER': true,
-    }),
-    new webpack.optimize.UglifyJsPlugin({ // Optimize the JavaScript...
-      sourceMap: true,
-      mangle: true,
-      compress: {
-        sequences: true,
-        dead_code: true,
-        conditionals: true,
-        booleans: true,
-        unused: true,
-        if_return: true,
-        join_vars: true,
-        drop_console: true
-      }
-    }),
-    new webpack.LoaderOptionsPlugin({
-      debug: false
-    }),
-    new StatsPlugin('stats.json', {
-      chunkModules: false,
-      exclude: /node_modules/
+      'IS_PRODUCTION': true
     }),
     // new BundleAnalyzerPlugin()
   ],
   optimization: {
-    splitChunks: { // CommonsChunkPlugin()
-      chunks: 'async'
-    },
     noEmitOnErrors: true, // NoEmitOnErrorsPlugin
     concatenateModules: true //ModuleConcatenationPlugin
   },
-  target: 'web',
+  target: 'web', // Make web variables accessible to webpack, e.g. window
   stats: {
+    colors: true,
     hash: false,
     version: false,
+    chunks: false,
     children: false
   }
-};
+}
