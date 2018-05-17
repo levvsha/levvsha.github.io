@@ -7,7 +7,6 @@ module.exports = {
   devtool: 'cheap-inline-module-source-map',
   entry: {
     'main': [
-      'react-hot-loader/patch',
       'webpack-hot-middleware/client?reload=true',
       './src/app.js',
     ]
