@@ -262,7 +262,7 @@ class Vizualization {
       });
 
     this.nodes.circles
-      .filter(d => groups[d.tag] === tag)
+      .filter(d => (groups[d.tag] || 'other') === tag)
       .transition(this.circlesPulsingTransition)
       .attr('r', d => d.radius - (isIncreaseIteration ? 3 : 0));
   }
